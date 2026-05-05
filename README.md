@@ -15,15 +15,13 @@
 
 ## 安装
 
-```bash
-brew install openconnect   # 前置依赖
-```
-
 下载 [Release](https://github.com/kafeifei/XDVPN/releases/latest)，或自己构建：
 
 ```bash
 ./build.sh && open build/XDVPN.app
 ```
+
+Release 包已内置 OpenConnect；用户机器不需要预装 Homebrew 或 openconnect。
 
 > 未经 Apple 公证，首次打开需：系统设置 → 隐私与安全性 → "仍要打开"。
 > 自己 `./build.sh` 的不受此限制。
@@ -58,7 +56,8 @@ openconnect 崩溃 → kernel 关 fd → utun 销毁 → `/1` 路由自动消失
 
 | 文件 | 作用 |
 |------|------|
-| `xdvpn-openconnect` | 受控 openconnect wrapper，固定参数与 route script，只接受协议/用户/服务器 |
+| `openconnect/` | 从 App 内置资源安装来的 OpenConnect + 依赖 dylib |
+| `xdvpn-openconnect` | 受控 OpenConnect wrapper，固定参数与 route script，只接受协议/用户/服务器 |
 | `xdvpn-route-script` | openconnect `--script` 调用，做 def1 路由 + DNS + 写 session |
 | `xdvpn-cleanup` | 停 openconnect + 按 session 记录逐项清理，幂等 |
 | `xdvpn-dns-proxy` | 域名分流时代理指定后缀 DNS，并只清理带 XDVPN 标记的 resolver 文件 |
@@ -67,7 +66,10 @@ openconnect 崩溃 → kernel 关 fd → utun 销毁 → `/1` 路由自动消失
 
 ## 构建 & 发布
 
+本地构建 release 包需要用 Homebrew 提供 OpenConnect 作为打包输入；版本范围由 `Vendor/openconnect.lock` 锁定为同一 major/minor、允许 patch 更新。
+
 ```bash
+brew install openconnect   # 仅构建者需要，用户安装 Release 不需要
 ./build.sh              # 构建 .app
 ./build.sh release      # 构建 + 打包 zip
 ```

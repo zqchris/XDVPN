@@ -26,9 +26,21 @@ cp "$BIN_PATH/XDVPN" "$APP/Contents/MacOS/XDVPN"
 cp "$BIN_PATH/xdvpn-dns-proxy" "$APP/Contents/MacOS/xdvpn-dns-proxy"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/Icon.png "$APP/Contents/Resources/Icon.png"
+if [[ -f Resources/THIRD_PARTY_NOTICES.md ]]; then
+    cp Resources/THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+fi
+
+echo "==> vendoring openconnect"
+scripts/vendor-openconnect.sh "$APP"
+
+echo "==> signing bundled openconnect"
+find "$APP/Contents/Resources/openconnect" -type f \( -perm +111 -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
 
 # ad-hoc 签名（Icon.png 已就位，签名覆盖整个包）
 codesign --force --deep --sign - "$APP"
+
+echo "==> verifying bundled openconnect"
+"$APP/Contents/Resources/openconnect/bin/openconnect" --version | head -n 1
 
 echo ""
 echo "✅ 构建完成：$APP"

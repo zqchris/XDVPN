@@ -285,6 +285,7 @@ final class VPNController: ObservableObject {
 
     func installSudoers(thenConnect: Bool = false) {
         isBusy = true
+        statusText = "正在安装组件…"
         Task.detached { [weak self] in
             let errMsg: String? = {
                 do {

@@ -24,6 +24,9 @@ enum SudoersInstaller {
     /// 走 sudoers NOPASSWD。
     static let cleanupPath = "\(helperDir)/xdvpn-cleanup"
     static let dnsProxyPath = "\(helperDir)/xdvpn-dns-proxy"
+    static let installedOpenConnectDir = "\(helperDir)/openconnect"
+    static let installedOpenConnectPath = "\(installedOpenConnectDir)/bin/openconnect"
+    private static let installedOpenConnectVersionPath = "\(installedOpenConnectDir)/VERSION"
 
     /// v0.2 的 helper，v0.3 安装时顺手删掉（用户从 0.2 升级时的清理）
     private static let legacyPaths = [
@@ -48,10 +51,14 @@ enum SudoersInstaller {
         guard fm.fileExists(atPath: sudoersPath),
               pathIsRootOwnedAndNotWritable(privilegedHelperParentDir),
               pathIsRootOwnedAndNotWritable(helperDir),
+              pathIsRootOwnedAndNotWritable(installedOpenConnectDir),
+              pathIsRootOwnedAndNotWritable(installedOpenConnectPath),
               pathIsRootOwnedAndNotWritable(openconnectWrapperPath),
               pathIsRootOwnedAndNotWritable(routeScriptPath),
               pathIsRootOwnedAndNotWritable(cleanupPath),
               pathIsRootOwnedAndNotWritable(dnsProxyPath),
+              fm.isExecutableFile(atPath: installedOpenConnectPath),
+              installedOpenConnectVersion == bundledOpenConnectVersion,
               fm.fileExists(atPath: openconnectWrapperPath),
               fm.fileExists(atPath: routeScriptPath),
               fm.fileExists(atPath: cleanupPath),
@@ -75,9 +82,28 @@ enum SudoersInstaller {
         return content.hasPrefix(signature)
     }
 
+    private static var bundledOpenConnectDir: String? {
+        Bundle.main.resourceURL?.appendingPathComponent("openconnect").path
+    }
+
+    private static var bundledOpenConnectPath: String? {
+        Bundle.main.resourceURL?.appendingPathComponent("openconnect/bin/openconnect").path
+    }
+
+    private static var bundledOpenConnectVersion: String? {
+        guard let path = Bundle.main.resourceURL?.appendingPathComponent("openconnect/VERSION").path else {
+            return nil
+        }
+        return try? String(contentsOfFile: path, encoding: .utf8)
+    }
+
+    private static var installedOpenConnectVersion: String? {
+        try? String(contentsOfFile: installedOpenConnectVersionPath, encoding: .utf8)
+    }
+
     // MARK: - Helper 脚本内容
 
-    private static func openconnectWrapperContent(openconnectPath: String) -> String {
+    private static func openconnectWrapperContent() -> String {
         let protocolPattern = OpenConnectRunner.protocols.joined(separator: "|")
         return #"""
         #!/bin/bash
@@ -85,7 +111,7 @@ enum SudoersInstaller {
         # sudoers 只放行这个 wrapper；openconnect 参数在这里固定，不允许用户传自定义 --script。
         set -eu
 
-        OPENCONNECT=\#(shellQuote(openconnectPath))
+        OPENCONNECT="\#(installedOpenConnectPath)"
         ROUTE_SCRIPT="\#(routeScriptPath)"
         PID_FILE="/tmp/xdvpn.pid"
 
@@ -489,7 +515,10 @@ enum SudoersInstaller {
     /// administrator privileges 完成，用户只弹一次管理员授权。
     /// 任何一步失败 set -e 整体失败，不会只装一半。
     static func install() throws {
-        guard let ocPath = OpenConnectRunner.openconnectPath else {
+        guard let bundledOCDir = bundledOpenConnectDir,
+              let bundledOCPath = bundledOpenConnectPath,
+              FileManager.default.isExecutableFile(atPath: bundledOCPath),
+              bundledOpenConnectVersion != nil else {
             throw VPNError.openconnectNotFound
         }
         let user = NSUserName()
@@ -520,16 +549,24 @@ enum SudoersInstaller {
         # 清 v0.2 旧文件（升级路径）
         rm -f \(legacyPaths.map { "'\($0)'" }.joined(separator: " "))
 
-        # 1) xdvpn-openconnect
+        # 1) bundled openconnect + dylibs
+        rm -rf '\(installedOpenConnectDir)'
+        ditto '\(bundledOCDir)' '\(installedOpenConnectDir)'
+        chown -R root:wheel '\(installedOpenConnectDir)'
+        chmod -R go-w '\(installedOpenConnectDir)'
+        find '\(installedOpenConnectDir)' -type d -exec chmod 0755 {} +
+        find '\(installedOpenConnectDir)' -type f -exec chmod 0755 {} +
+
+        # 2) xdvpn-openconnect
         OC_TMP=$(mktemp)
         cat > "$OC_TMP" <<'XDVPN_OPENCONNECT_EOF'
-        \(openconnectWrapperContent(openconnectPath: ocPath))
+        \(openconnectWrapperContent())
         XDVPN_OPENCONNECT_EOF
         chown root:wheel "$OC_TMP"
         chmod 0755 "$OC_TMP"
         mv "$OC_TMP" '\(openconnectWrapperPath)'
 
-        # 2) xdvpn-route-script
+        # 3) xdvpn-route-script
         RS_TMP=$(mktemp)
         cat > "$RS_TMP" <<'XDVPN_ROUTESCRIPT_EOF'
         \(routeScriptContent)
@@ -538,7 +575,7 @@ enum SudoersInstaller {
         chmod 0755 "$RS_TMP"
         mv "$RS_TMP" '\(routeScriptPath)'
 
-        # 3) xdvpn-cleanup
+        # 4) xdvpn-cleanup
         CL_TMP=$(mktemp)
         cat > "$CL_TMP" <<'XDVPN_CLEANUP_EOF'
         \(cleanupScriptContent)
@@ -547,12 +584,12 @@ enum SudoersInstaller {
         chmod 0755 "$CL_TMP"
         mv "$CL_TMP" '\(cleanupPath)'
 
-        # 4) xdvpn-dns-proxy（编译好的二进制，从 app bundle 复制）
+        # 5) xdvpn-dns-proxy（编译好的二进制，从 app bundle 复制）
         cp '\(proxySourcePath)' '\(dnsProxyPath)'
         chown root:wheel '\(dnsProxyPath)'
         chmod 0755 '\(dnsProxyPath)'
 
-        # 5) sudoers（visudo -c 严格校验通过才落盘）
+        # 6) sudoers（visudo -c 严格校验通过才落盘）
         SU_TMP=$(mktemp)
         cat > "$SU_TMP" <<'XDVPN_SUDOERS_EOF'
         \(sudoersRule)
@@ -579,6 +616,7 @@ enum SudoersInstaller {
         let paths = [sudoersPath, openconnectWrapperPath, routeScriptPath, cleanupPath, dnsProxyPath] + legacyPaths
         let shell = """
         rm -f \(paths.map { "'\($0)'" }.joined(separator: " "))
+        rm -rf '\(installedOpenConnectDir)'
         rmdir '\(helperDir)' 2>/dev/null || true
         """
         let script = "do shell script \(appleScriptQuote(shell)) with administrator privileges"
@@ -591,10 +629,6 @@ enum SudoersInstaller {
                 userInfo: [NSLocalizedDescriptionKey: "卸载失败：\(msg)"]
             )
         }
-    }
-
-    private static func shellQuote(_ s: String) -> String {
-        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     private static func appleScriptQuote(_ s: String) -> String {

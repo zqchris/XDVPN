@@ -9,7 +9,7 @@ enum VPNError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .openconnectNotFound: return "未找到 openconnect，请先 brew install openconnect"
+        case .openconnectNotFound: return "安装包缺少内置 openconnect，请重新下载 XDVPN"
         case .invalidProtocol: return "不支持的协议"
         case .connectFailed(let s): return "连接失败：\(s)"
         case .sudoNotConfigured: return "sudo 免密未配置或规则不完整，请重新点击\"一键配置\""
@@ -30,14 +30,6 @@ enum OpenConnectRunner {
     static let pidPath = "/tmp/xdvpn.pid"
 
     static let protocols = ["anyconnect", "nc", "gp", "pulse", "f5", "fortinet", "array"]
-
-    /// 在 Apple Silicon 和 Intel 两种 Homebrew 前缀中找
-    static var openconnectPath: String? {
-        for p in ["/opt/homebrew/bin/openconnect", "/usr/local/bin/openconnect"] {
-            if FileManager.default.isExecutableFile(atPath: p) { return p }
-        }
-        return nil
-    }
 
     // MARK: - Connect
 
