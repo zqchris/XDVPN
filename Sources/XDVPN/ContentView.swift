@@ -83,8 +83,9 @@ struct MainWindowView: View {
             }
             .padding(18)
         }
-        .scrollIndicators(.hidden)   // 内容超出固定高度时仍可滚动，但滚动条隐形
-        .frame(width: Design.mainWindowWidth, height: 720)
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.automatic)
+        .frame(width: Design.mainWindowWidth)
         .background(WindowBackground())
     }
 }
@@ -147,6 +148,7 @@ private struct StatusHero: View {
                     Text(VPNController.formatDuration(Int(Date().timeIntervalSince(t))))
                         .font(.system(size: compact ? 12 : 14, design: .monospaced))
                         .foregroundStyle(.secondary)
+                        .fixedSize()
                 }
                 if !compact {
                     Text("时长")
@@ -703,6 +705,7 @@ private struct StatChip: View {
                 .fill(Color.secondary.opacity(0.10))
         )
         .foregroundStyle(.secondary)
+        .fixedSize()
     }
 }
 

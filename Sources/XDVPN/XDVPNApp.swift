@@ -294,16 +294,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         self?.showMainWindow()
                     })
             )
-            // 之前用 sizingOptions = [.preferredContentSize] 让窗口跟着 SwiftUI 内容自适应大小，
-            // 但 @Published 状态（流量速率每秒变 + socks5 状态变化）触发频繁 layout，
-            // AppKit 在 _postWindowNeedsUpdateConstraints 里抛 NSException → 主线程 crash。
-            // 现在改回固定窗口尺寸 + 内部 ScrollView（滚动条视觉隐藏），稳。
+            hosting.sizingOptions = .preferredContentSize
 
             let window = MainWindow(contentViewController: hosting)
             window.title = "XDVPN"
             window.titleVisibility = .visible
             window.styleMask = [.titled, .closable, .miniaturizable]
             window.isReleasedWhenClosed = false
+
+            let screenH = NSScreen.main?.visibleFrame.height ?? 800
+            window.contentMinSize = NSSize(width: Design.mainWindowWidth, height: 300)
+            window.contentMaxSize = NSSize(width: Design.mainWindowWidth, height: screenH - 40)
+
             window.setFrameAutosaveName("com.kafeifei.xdvpn.MainWindow")
             window.center()
             window.delegate = self
