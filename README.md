@@ -73,14 +73,26 @@ openconnect 崩溃 → kernel 关 fd → utun 销毁 → `/1` 路由自动消失
 
 **凭据**：密码存 Keychain（`kSecAttrAccessibleWhenUnlocked`），其他字段 UserDefaults。
 
+## 第三方依赖
+
+Release 包内置了以下第三方软件，完整许可证文本见 [THIRD_PARTY_LICENSES](THIRD_PARTY_LICENSES)：
+
+| 组件 | 许可证 | 用途 |
+|------|--------|------|
+| [OpenConnect](https://www.infradead.org/openconnect/) | LGPL-2.1 | VPN 客户端核心 |
+| [ocproxy](https://github.com/cernekee/ocproxy) | BSD-3-Clause | 用户态 SOCKS5 代理（纯代理模式） |
+| [libevent](https://libevent.org/) | BSD-3-Clause | ocproxy 运行时依赖 |
+
+OpenConnect 以 LGPL-2.1 授权，以动态链接方式使用；源码可从上游仓库获取。
+
 ## 构建 & 发布
 
-本地构建 release 包需要用 Homebrew 提供 OpenConnect 作为打包输入；版本范围由 `Vendor/openconnect.lock` 锁定为同一 major/minor、允许 patch 更新。
+本地构建 release 包需要用 Homebrew 提供 OpenConnect 和 ocproxy 作为打包输入；版本范围由 `Vendor/openconnect.lock` 锁定为同一 major/minor、允许 patch 更新。
 
 ```bash
-brew install openconnect   # 仅构建者需要，用户安装 Release 不需要
-./build.sh              # 构建 .app
-./build.sh release      # 构建 + 打包 zip
+brew install openconnect ocproxy   # 仅构建者需要，用户安装 Release 不需要
+./build.sh                         # 构建 .app
+./build.sh release                 # 构建 + 打包 zip
 ```
 
 改 `Resources/Info.plist` 版本号，打 tag 推送，GitHub Actions 自动发 Release。
