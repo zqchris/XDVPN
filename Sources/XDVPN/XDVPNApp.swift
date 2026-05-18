@@ -156,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
     private var mainWindow: NSWindow?
+    private var badgeView: NSView?
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: lifecycle
@@ -206,6 +207,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.refreshStatusItem() }
             .store(in: &cancellables)
 
+        updater.$latestVersion
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshBadge() }
+            .store(in: &cancellables)
+
         // 直接订阅速率发布者 —— 每次 pollTimer 刷新速率（1Hz）都重画
         Publishers.CombineLatest(controller.$trafficInRate, controller.$trafficOutRate)
             .receive(on: RunLoop.main)
@@ -223,6 +230,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.image = composeStatusImage()
         // 整体淡化：未连接时半透明（不变黑，跟随明暗模式自动适配）
         button.alphaValue = controller.isConnected ? 1.0 : 0.4
+        refreshBadge()
+    }
+
+    private func refreshBadge() {
+        guard let button = statusItem.button else { return }
+
+        if updater.hasUpdate {
+            if badgeView == nil {
+                let size: CGFloat = 7
+                let dot = NSView(frame: NSRect(x: 0, y: 0, width: size, height: size))
+                dot.wantsLayer = true
+                dot.layer?.backgroundColor = NSColor.systemRed.cgColor
+                dot.layer?.cornerRadius = size / 2
+                button.addSubview(dot)
+                badgeView = dot
+            }
+            // 每次刷新都重新定位（button 尺寸可能因速度文字变化）
+            let size: CGFloat = 7
+            badgeView?.frame = NSRect(
+                x: button.bounds.width - size - 1,
+                y: button.bounds.height - size - 2,
+                width: size, height: size)
+            badgeView?.isHidden = false
+        } else {
+            badgeView?.isHidden = true
+        }
     }
 
     /// 把图标 + （可选）两行速度文字合成成一张 template NSImage，
