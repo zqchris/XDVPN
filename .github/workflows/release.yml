@@ -20,10 +20,10 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      - name: Install OpenConnect for bundling
+      - name: Install OpenConnect and ocproxy for bundling
         run: |
           brew update
-          brew install openconnect
+          brew install openconnect ocproxy
 
       - name: Build release zip
         run: ./build.sh release
