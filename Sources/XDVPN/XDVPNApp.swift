@@ -161,6 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         debugServer?.start()
         #endif
 
+        setupMainMenu()
         setupStatusItem()
         observeState()
 
@@ -184,6 +185,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
 
         refreshStatusItem()
+    }
+
+    private func setupMainMenu() {
+        let mainMenu = NSMenu()
+
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+
+        let appMenu = NSMenu(title: "XDVPN")
+        appMenuItem.submenu = appMenu
+        appMenu.addItem(withTitle: "隐藏 XDVPN", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+
+        let hideOthers = appMenu.addItem(
+            withTitle: "隐藏其它",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h")
+        hideOthers.keyEquivalentModifierMask = [.command, .option]
+
+        appMenu.addItem(withTitle: "全部显示", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        appMenu.addItem(NSMenuItem.separator())
+        let quit = appMenu.addItem(withTitle: "退出 XDVPN", action: #selector(menuQuit), keyEquivalent: "q")
+        quit.target = self
+
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+
+        let editMenu = NSMenu(title: "编辑")
+        editMenuItem.submenu = editMenu
+        editMenu.addItem(withTitle: "撤销", action: NSSelectorFromString("undo:"), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: "重做", action: NSSelectorFromString("redo:"), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "粘贴", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        let pasteAndMatch = editMenu.addItem(
+            withTitle: "粘贴并匹配样式",
+            action: #selector(NSTextView.pasteAsPlainText(_:)),
+            keyEquivalent: "v")
+        pasteAndMatch.keyEquivalentModifierMask = [.command, .option, .shift]
+        editMenu.addItem(withTitle: "删除", action: #selector(NSText.delete(_:)), keyEquivalent: "")
+        editMenu.addItem(NSMenuItem.separator())
+        editMenu.addItem(withTitle: "全选", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        NSApp.mainMenu = mainMenu
     }
 
     /// 监听 VPN 状态、速率、显示开关，任何变化都立刻刷新菜单栏图标/标题
