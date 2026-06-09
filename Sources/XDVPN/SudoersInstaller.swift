@@ -5,7 +5,7 @@ import Foundation
 enum SudoersInstaller {
     /// 每次改 helper 脚本内容后递增。isInstalled 会校验磁盘上的版本号，
     /// 不匹配 → sudoConfigured=false → UI 自动提示"一键配置"覆盖升级。
-    static let helperVersion = 8
+    static let helperVersion = 9
 
     static let sudoersPath = "/etc/sudoers.d/xdvpn"
     static let privilegedHelperParentDir = "/Library/PrivilegedHelperTools"
@@ -172,7 +172,8 @@ enum SudoersInstaller {
     }
 
     /// openconnect 的 --script 替代品。
-    /// reason=connect 时：配 utun、加 def1 路由、加 VPN 网关 host route、插 DNS，
+    /// reason=connect 时：配 utun、加 def1 路由、加 VPN 网关 host route、插 DNS、
+    /// full 模式下关闭并记录系统代理（隧道已接管全部流量，系统不需要再走 Surge 等代理），
     /// 并把每一条"加了什么"append 到 /tmp/xdvpn.session（write-ahead）。
     /// reason=disconnect 时：读 session，逐项 remove。
     /// 原则：只做加法 + 删自己加的；从不碰系统原有的 default route / DNS / 其他接口。
@@ -285,6 +286,23 @@ enum SudoersInstaller {
             if route add -net 128.0.0.0/1 -interface "$TUNDEV" 2>/dev/null; then
                 append_state "ROUTE_NET=128.0.0.0/1"
             fi
+
+            # 系统代理：full tunnel 下隧道已接管全部流量，系统不需要再走代理。
+            # 把各网络服务上「当前开着的」代理开关记进 session 并关掉；
+            # disconnect / cleanup 再按 session 原样恢复（只恢复我们关过的那几条）。
+            # 原则不变：只关确认开着的；分流模式走不到这里，保留用户的系统代理 / Surge。
+            networksetup -listallnetworkservices 2>/dev/null | while IFS= read -r svc; do
+                case "$svc" in ''|'An asterisk'*|'*'*) continue ;; esac
+                if networksetup -getwebproxy "$svc" 2>/dev/null | grep -q '^Enabled: Yes'; then
+                    networksetup -setwebproxystate "$svc" off 2>/dev/null && append_state "SYSPROXY_WEB=$svc"
+                fi
+                if networksetup -getsecurewebproxy "$svc" 2>/dev/null | grep -q '^Enabled: Yes'; then
+                    networksetup -setsecurewebproxystate "$svc" off 2>/dev/null && append_state "SYSPROXY_SECURE=$svc"
+                fi
+                if networksetup -getsocksfirewallproxy "$svc" 2>/dev/null | grep -q '^Enabled: Yes'; then
+                    networksetup -setsocksfirewallproxystate "$svc" off 2>/dev/null && append_state "SYSPROXY_SOCKS=$svc"
+                fi
+            done
         fi
 
         # 5) DNS
@@ -392,6 +410,15 @@ enum SudoersInstaller {
                     route delete -host "$val" 2>/dev/null || true ;;
                   ROUTE_NET)
                     [ -n "$TD" ] && route delete -net "$val" -interface "$TD" 2>/dev/null || true ;;
+                esac
+            done < "$SESSION"
+
+            # 系统代理恢复（只恢复 connect 时我们关过的那几条）
+            while IFS='=' read -r tag val; do
+                case "$tag" in
+                  SYSPROXY_WEB)    networksetup -setwebproxystate "$val" on 2>/dev/null || true ;;
+                  SYSPROXY_SECURE) networksetup -setsecurewebproxystate "$val" on 2>/dev/null || true ;;
+                  SYSPROXY_SOCKS)  networksetup -setsocksfirewallproxystate "$val" on 2>/dev/null || true ;;
                 esac
             done < "$SESSION"
 
@@ -514,6 +541,15 @@ enum SudoersInstaller {
             # 兜底：极罕见情况 utun 没被 kernel 清，我们自己 destroy
             ifconfig "$TD" destroy 2>/dev/null || true
         fi
+
+        # 系统代理恢复（崩溃 / 强杀后兜底；只恢复 connect 时我们关过的那几条）
+        while IFS='=' read -r tag val; do
+            case "$tag" in
+              SYSPROXY_WEB)    networksetup -setwebproxystate "$val" on 2>/dev/null || true ;;
+              SYSPROXY_SECURE) networksetup -setsecurewebproxystate "$val" on 2>/dev/null || true ;;
+              SYSPROXY_SOCKS)  networksetup -setsocksfirewallproxystate "$val" on 2>/dev/null || true ;;
+            esac
+        done < "$SESSION"
 
         rm -f "$SESSION"
     fi
