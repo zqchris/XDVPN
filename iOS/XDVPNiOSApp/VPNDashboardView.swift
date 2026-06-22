@@ -221,19 +221,9 @@ private struct PowerControlView: View {
                 .stroke(Color.white.opacity(isEnabled ? 0.08 : 0.045), lineWidth: 24)
                 .frame(width: 232, height: 232)
 
-            Circle()
-                .trim(from: 0.08, to: trimEnd)
-                .stroke(
-                    AngularGradient(
-                        colors: ringColors,
-                        center: .center,
-                        startAngle: .degrees(0),
-                        endAngle: .degrees(360)
-                    ),
-                    style: StrokeStyle(lineWidth: 17, lineCap: .round)
-                )
+            ringStroke
                 .frame(width: 232, height: 232)
-                .rotationEffect(.degrees(isBusy ? ringRotation - 92 : -92))
+                .rotationEffect(.degrees(isBusy ? ringRotation - 92 : 0))
                 .shadow(color: glowColor.opacity(isEnabled ? glowOpacity : 0.08), radius: glowRadius)
 
             ZStack {
@@ -269,8 +259,31 @@ private struct PowerControlView: View {
         .animation(.smooth(duration: 0.2), value: isEnabled)
     }
 
-    private var trimEnd: CGFloat {
-        isBusy ? 0.74 : 0.99
+    @ViewBuilder
+    private var ringStroke: some View {
+        if isBusy {
+            Circle()
+                .trim(from: 0.08, to: 0.74)
+                .stroke(
+                    ringGradient,
+                    style: StrokeStyle(lineWidth: 17, lineCap: .round)
+                )
+        } else {
+            Circle()
+                .stroke(
+                    ringGradient,
+                    style: StrokeStyle(lineWidth: 17, lineCap: .round)
+                )
+        }
+    }
+
+    private var ringGradient: AngularGradient {
+        AngularGradient(
+            colors: ringColors,
+            center: .center,
+            startAngle: .degrees(0),
+            endAngle: .degrees(360)
+        )
     }
 
     private var ringColors: [Color] {
