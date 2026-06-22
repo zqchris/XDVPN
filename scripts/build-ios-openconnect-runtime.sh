@@ -163,20 +163,7 @@ if [[ "$BUILD_APP" -eq 1 ]]; then
         exit 1
     fi
 
-    "$ROOT/scripts/build-ios.sh"
-
-    for dest in \
-        "$ROOT/build/Debug-iphonesimulator/XDVPN.app/Frameworks" \
-        "$ROOT/build/Debug-iphonesimulator/XDVPN.app/PlugIns/PacketTunnel.appex/Frameworks" \
-        "$ROOT/build/Debug-iphonesimulator/PacketTunnel.appex/Frameworks"; do
-        mkdir -p "$dest"
-        cp "$RUNTIME_SOURCE" "$dest/libopenconnect.dylib"
-        install_name_tool -id @rpath/libopenconnect.dylib "$dest/libopenconnect.dylib"
-        codesign --force --sign - "$dest/libopenconnect.dylib" >/dev/null
-    done
-
-    codesign --force --sign - "$ROOT/build/Debug-iphonesimulator/XDVPN.app/PlugIns/PacketTunnel.appex" >/dev/null
-    codesign --force --sign - "$ROOT/build/Debug-iphonesimulator/XDVPN.app" >/dev/null
+    XDVPN_IOS_DEPS_DIR="$WORK_DIR" XDVPN_REQUIRE_OPENCONNECT_RUNTIME=1 "$ROOT/scripts/build-ios.sh"
     echo "Injected libopenconnect.dylib into build/Debug-iphonesimulator/XDVPN.app"
 else
     echo "Built runtime: $RUNTIME_SOURCE"

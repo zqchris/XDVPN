@@ -199,6 +199,7 @@
 				A00000000000000000000054 /* Sources */,
 				A00000000000000000000055 /* Frameworks */,
 				A00000000000000000000056 /* Resources */,
+				A00000000000000000000103 /* Embed OpenConnect Runtime */,
 			);
 			buildRules = (
 			);
@@ -262,6 +263,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A00000000000000000000103 /* Embed OpenConnect Runtime */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed OpenConnect Runtime";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"${SRCROOT}/scripts/embed-ios-openconnect-runtime.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A00000000000000000000050 /* Sources */ = {
