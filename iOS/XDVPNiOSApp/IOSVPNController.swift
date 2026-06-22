@@ -10,6 +10,19 @@ final class IOSVPNController: ObservableObject {
     @Published private(set) var status: NEVPNStatus = .invalid
     @Published private(set) var isBusy = false
     @Published private(set) var lastError: String?
+    @Published var demoTunnelEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(demoTunnelEnabled, forKey: "xdvpn.ios.demoTunnelEnabled")
+            if demoTunnelEnabled {
+                lastError = nil
+                if status == .invalid { status = .disconnected }
+            } else if oldValue {
+                isConnectionAttemptInFlight = false
+                isBusy = false
+                status = manager?.connection.status ?? .disconnected
+            }
+        }
+    }
 
     private var manager: NETunnelProviderManager?
     private var statusObserver: NSObjectProtocol?
@@ -17,6 +30,7 @@ final class IOSVPNController: ObservableObject {
 
     init(loadOnStart: Bool = true) {
         self.profile = Self.loadStoredProfile()
+        self.demoTunnelEnabled = UserDefaults.standard.bool(forKey: "xdvpn.ios.demoTunnelEnabled")
         installStatusObserver()
         if loadOnStart {
             Task { await reload() }
@@ -68,7 +82,12 @@ final class IOSVPNController: ObservableObject {
     }
 
     func connect() async {
-        guard profile.canConnect else {
+        if demoTunnelEnabled {
+            await connectDemoTunnel()
+            return
+        }
+
+        guard demoTunnelEnabled || profile.canConnect else {
             presentError("请先填写服务器和用户名")
             return
         }
@@ -92,6 +111,11 @@ final class IOSVPNController: ObservableObject {
 
     func disconnect() {
         isConnectionAttemptInFlight = false
+        if demoTunnelEnabled {
+            disconnectDemoTunnel()
+            return
+        }
+
         status = .disconnecting
         manager?.connection.stopVPNTunnel()
         status = manager?.connection.status ?? .disconnecting
@@ -105,11 +129,11 @@ final class IOSVPNController: ObservableObject {
         let tunnelProtocol = (target.protocolConfiguration as? NETunnelProviderProtocol)
             ?? NETunnelProviderProtocol()
         tunnelProtocol.providerBundleIdentifier = SharedConstants.providerBundleIdentifier
-        tunnelProtocol.serverAddress = profile.server
-        tunnelProtocol.username = profile.username
-        tunnelProtocol.providerConfiguration = profile.providerConfiguration
+        tunnelProtocol.serverAddress = effectiveServer
+        tunnelProtocol.username = effectiveUsername
+        tunnelProtocol.providerConfiguration = effectiveProviderConfiguration
 
-        if !password.isEmpty {
+        if !demoTunnelEnabled && !password.isEmpty {
             tunnelProtocol.passwordReference = try KeychainPersistentReferenceStore.savePassword(
                 password,
                 account: profile.keychainAccount
@@ -178,6 +202,60 @@ final class IOSVPNController: ObservableObject {
     private func persistProfile() {
         guard let data = try? JSONEncoder().encode(profile) else { return }
         UserDefaults.standard.set(data, forKey: "xdvpn.ios.profile")
+    }
+
+    private func connectDemoTunnel() async {
+        isConnectionAttemptInFlight = false
+        isBusy = true
+        lastError = nil
+        status = .connecting
+        try? await Task.sleep(nanoseconds: 850_000_000)
+        guard demoTunnelEnabled else {
+            status = manager?.connection.status ?? .disconnected
+            isBusy = false
+            return
+        }
+        status = .connected
+        isBusy = false
+    }
+
+    private func disconnectDemoTunnel() {
+        isBusy = true
+        status = .disconnecting
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 360_000_000)
+            guard self.demoTunnelEnabled else {
+                self.status = self.manager?.connection.status ?? .disconnected
+                self.isBusy = false
+                return
+            }
+            self.status = .disconnected
+            self.isBusy = false
+        }
+    }
+
+    private var effectiveServer: String {
+        if demoTunnelEnabled && profile.server.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "demo.xdvpn.local"
+        }
+        return profile.server
+    }
+
+    private var effectiveUsername: String {
+        if demoTunnelEnabled && profile.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "demo"
+        }
+        return profile.username
+    }
+
+    private var effectiveProviderConfiguration: [String: Any] {
+        var configuration = profile.providerConfiguration(
+            engineMode: demoTunnelEnabled ? "demo" : "openconnect"
+        )
+        configuration["server"] = effectiveServer
+        configuration["username"] = effectiveUsername
+        configuration["demoTunnelEnabled"] = demoTunnelEnabled
+        return configuration
     }
 
     private static func loadStoredProfile() -> VPNProfile {

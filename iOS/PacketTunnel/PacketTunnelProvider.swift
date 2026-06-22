@@ -4,32 +4,34 @@ import os.log
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let logger = Logger(subsystem: "com.kafeifei.xdvpn.ios", category: "PacketTunnel")
+    private var activeEngine: PacketTunnelEngine?
 
     override func startTunnel(
         options: [String: NSObject]?,
         completionHandler: @escaping (Error?) -> Void
     ) {
-        let tunnelProtocol = protocolConfiguration as? NETunnelProviderProtocol
-        let configuration = tunnelProtocol?.providerConfiguration ?? [:]
-        let server = configuration["server"] as? String ?? tunnelProtocol?.serverAddress ?? "unknown"
-        let protocolName = configuration["protocol"] as? String ?? "anyconnect"
-        let runningMode = configuration["runningMode"] as? String ?? "full"
-        let splitCIDRs = configuration["splitCIDRs"] as? [String] ?? []
-        let splitDomains = configuration["splitDomains"] as? [String] ?? []
-
-        logger.error("OpenConnect engine is not linked. server=\(server, privacy: .private) protocol=\(protocolName, privacy: .public) mode=\(runningMode, privacy: .public) cidrs=\(splitCIDRs.count, privacy: .public) domains=\(splitDomains.count, privacy: .public)")
-        completionHandler(PacketTunnelStartFailure.openConnectEngineUnavailable(
-            server: server,
-            protocolName: protocolName
-        ).nsError)
+        let configuration = PacketTunnelConfiguration(
+            protocolConfiguration: protocolConfiguration as? NETunnelProviderProtocol
+        )
+        let engine = makeEngine(for: configuration.engineMode)
+        activeEngine = engine
+        logger.info("Starting packet tunnel engine=\(configuration.engineMode.rawValue, privacy: .public)")
+        engine.start(
+            provider: self,
+            configuration: configuration,
+            completionHandler: completionHandler
+        )
     }
 
     override func stopTunnel(
         with reason: NEProviderStopReason,
         completionHandler: @escaping () -> Void
     ) {
-        logger.info("Packet tunnel stopped with reason \(reason.rawValue, privacy: .public)")
-        completionHandler()
+        logger.info("Packet tunnel stop requested reason=\(reason.rawValue, privacy: .public)")
+        let engine = activeEngine
+        activeEngine = nil
+        engine?.stop(provider: self, reason: reason, completionHandler: completionHandler)
+            ?? completionHandler()
     }
 
     override func handleAppMessage(
@@ -44,23 +46,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func wake() {}
-}
 
-private enum PacketTunnelStartFailure {
-    case openConnectEngineUnavailable(server: String, protocolName: String)
-
-    var nsError: NSError {
-        switch self {
-        case .openConnectEngineUnavailable(let server, let protocolName):
-            return NSError(
-                domain: "com.kafeifei.xdvpn.ios.PacketTunnel",
-                code: 1,
-                userInfo: [
-                    NSLocalizedDescriptionKey: "OpenConnect iOS 引擎尚未接入",
-                    NSLocalizedFailureReasonErrorKey: "iOS 不能像 macOS 版一样启动 openconnect 进程；Packet Tunnel extension 必须内嵌协议实现。",
-                    NSLocalizedRecoverySuggestionErrorKey: "需要把 \(protocolName) 协议引擎移植为 extension 内可调用库后，才能连接 \(server)。",
-                ]
-            )
+    private func makeEngine(for mode: PacketTunnelEngineMode) -> PacketTunnelEngine {
+        switch mode {
+        case .demo:
+            return DemoPacketTunnelEngine()
+        case .openconnect:
+            return OpenConnectPacketTunnelEngine()
         }
     }
 }

@@ -8,6 +8,6 @@ xcodebuild \
   -target XDVPNiOS \
   -configuration Debug \
   -sdk iphonesimulator \
-  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGN_IDENTITY=- \
   ONLY_ACTIVE_ARCH=NO \
   build

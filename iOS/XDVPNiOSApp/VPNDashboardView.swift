@@ -62,6 +62,7 @@ struct VPNDashboardView: View {
                     SettingsPanelView(
                         profile: $controller.profile,
                         password: $controller.password,
+                        demoTunnelEnabled: $controller.demoTunnelEnabled,
                         focusedField: $focusedField
                     )
 
@@ -70,7 +71,10 @@ struct VPNDashboardView: View {
                         focusedField: $focusedField
                     )
 
-                    PacketTunnelNoteView(lastError: controller.lastError)
+                    PacketTunnelNoteView(
+                        lastError: controller.lastError,
+                        demoTunnelEnabled: controller.demoTunnelEnabled
+                    )
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 34)
@@ -118,11 +122,13 @@ struct VPNDashboardView: View {
     }
 
     private var displayServer: String {
-        controller.profile.server.isEmpty ? "vpn.example.com" : controller.profile.server
+        if controller.demoTunnelEnabled && controller.profile.server.isEmpty { return "demo.xdvpn.local" }
+        return controller.profile.server.isEmpty ? "vpn.example.com" : controller.profile.server
     }
 
     private var routeModeTitle: String {
-        controller.profile.routePolicy.isEnabled && controller.profile.routePolicy.hasRules
+        if controller.demoTunnelEnabled { return "Local Demo Tunnel" }
+        return controller.profile.routePolicy.isEnabled && controller.profile.routePolicy.hasRules
             ? "Manual VPN Policy"
             : "Global VPN"
     }
@@ -463,6 +469,7 @@ private struct ServerSummaryView: View {
 private struct SettingsPanelView: View {
     @Binding var profile: VPNProfile
     @Binding var password: String
+    @Binding var demoTunnelEnabled: Bool
     var focusedField: FocusState<Field?>.Binding
 
     var body: some View {
@@ -502,15 +509,30 @@ private struct SettingsPanelView: View {
 
             DividerView()
 
+            Toggle(isOn: $demoTunnelEnabled) {
+                HStack(spacing: 16) {
+                    SettingsIcon(name: "iphone.gen3.radiowaves.left.and.right", color: demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
+                    Text("Demo Tunnel")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(Color(red: 0.18, green: 0.82, blue: 1.0))
+            .frame(height: 68)
+
+            DividerView()
+
             HStack(spacing: 16) {
-                SettingsIcon(name: "waveform.path.ecg", color: Color(red: 1.0, green: 0.72, blue: 0.16))
+                SettingsIcon(name: "waveform.path.ecg", color: demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
                 Text("Packet Tunnel")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                 Spacer()
-                Text("Pending Engine")
+                Text(demoTunnelEnabled ? "Demo Ready" : "Pending Engine")
                     .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.16))
+                    .foregroundStyle(demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
             }
@@ -823,10 +845,11 @@ private struct PolicyEditorRow: View {
 
 private struct PacketTunnelNoteView: View {
     let lastError: String?
+    let demoTunnelEnabled: Bool
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(lastError ?? "VPN settings are saved into the packet tunnel configuration.")
+            Text(noteText)
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(lastError == nil ? .white.opacity(0.46) : Color(red: 1.0, green: 0.45, blue: 0.38))
@@ -834,6 +857,12 @@ private struct PacketTunnelNoteView: View {
                 .padding(.horizontal, 20)
         }
         .padding(.top, 2)
+    }
+
+    private var noteText: String {
+        if let lastError { return lastError }
+        if demoTunnelEnabled { return "Local demo mode previews connection states without system VPN traffic." }
+        return "VPN settings are saved into the packet tunnel configuration."
     }
 }
 

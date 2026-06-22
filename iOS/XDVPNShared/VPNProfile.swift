@@ -58,7 +58,7 @@ struct VPNProfile: Codable, Equatable {
         "\(username)@\(server)"
     }
 
-    var providerConfiguration: [String: Any] {
+    func providerConfiguration(engineMode: String = "openconnect") -> [String: Any] {
         let includedCIDRs = routePolicy.isEnabled ? routePolicy.includedCIDRs : []
         let includedDomains = routePolicy.isEnabled ? routePolicy.includedDomainSuffixes : []
         let policyHasRules = !includedCIDRs.isEmpty || !includedDomains.isEmpty
@@ -69,6 +69,7 @@ struct VPNProfile: Codable, Equatable {
             "protocol": protocolName.rawValue,
             "server": server,
             "username": username,
+            "engineMode": engineMode,
             "runningMode": splitEnabled ? "split" : "full",
             "splitEnabled": splitEnabled,
             "splitCIDRs": includedCIDRs,

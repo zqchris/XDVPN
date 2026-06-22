@@ -18,6 +18,7 @@
 		A00000000000000000000074 /* IOSVPNController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000073 /* IOSVPNController.swift */; };
 		A00000000000000000000076 /* KeychainPersistentReferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000075 /* KeychainPersistentReferenceStore.swift */; };
 		A00000000000000000000080 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000079 /* PacketTunnelProvider.swift */; };
+		A00000000000000000000097 /* PacketTunnelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000096 /* PacketTunnelEngine.swift */; };
 		A00000000000000000000084 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000083 /* NetworkExtension.framework */; };
 		A00000000000000000000085 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000083 /* NetworkExtension.framework */; };
 		A00000000000000000000087 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000086 /* Security.framework */; };
@@ -61,6 +62,7 @@
 		A00000000000000000000077 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000078 /* XDVPNiOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XDVPNiOS.entitlements; sourceTree = "<group>"; };
 		A00000000000000000000079 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		A00000000000000000000096 /* PacketTunnelEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngine.swift; sourceTree = "<group>"; };
 		A00000000000000000000081 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000082 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		A00000000000000000000083 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
@@ -143,6 +145,7 @@
 			isa = PBXGroup;
 			children = (
 				A00000000000000000000079 /* PacketTunnelProvider.swift */,
+				A00000000000000000000096 /* PacketTunnelEngine.swift */,
 				A00000000000000000000081 /* Info.plist */,
 				A00000000000000000000082 /* PacketTunnel.entitlements */,
 			);
@@ -271,6 +274,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000080 /* PacketTunnelProvider.swift in Sources */,
+				A00000000000000000000097 /* PacketTunnelEngine.swift in Sources */,
 				A00000000000000000000062 /* SharedConstants.swift in Sources */,
 				A00000000000000000000065 /* VPNProfile.swift in Sources */,
 				A00000000000000000000094 /* RoutePolicy.swift in Sources */,
