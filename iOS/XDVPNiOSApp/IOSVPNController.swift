@@ -99,6 +99,11 @@ final class IOSVPNController: ObservableObject {
             return
         }
 
+        if let environmentError = vpnExecutionPreflightMessage() {
+            presentError(environmentError)
+            return
+        }
+
         guard hasUsablePasswordCredential else {
             presentError("请填写 VPN 密码。iOS 的 Packet Tunnel 只能通过 Keychain passwordReference 把密码交给扩展。")
             return
@@ -345,6 +350,14 @@ final class IOSVPNController: ObservableObject {
         """
     }
 
+    private func vpnExecutionPreflightMessage() -> String? {
+        #if targetEnvironment(simulator)
+        return "连接失败：当前是 iOS Simulator。Simulator 可以预览 UI，但没有真实 Packet Tunnel 运行环境；请打开 Simulator Preview 测交互，或用带 Network Extension entitlement 的真机签名包测试 VPN。"
+        #else
+        return nil
+        #endif
+    }
+
     private static func openConnectRuntimeCandidates() -> [URL] {
         var candidates: [URL] = []
         let bundleURL = Bundle.main.bundleURL
@@ -409,6 +422,7 @@ final class IOSVPNController: ObservableObject {
 
     private static func userFacingMessage(for error: Error) -> String {
         let nsError = error as NSError
+        let description = nsError.localizedDescription
         if nsError.localizedDescription.localizedCaseInsensitiveContains("IPC failed") {
             #if targetEnvironment(simulator)
             return "连接失败：当前 iOS Simulator 没有可用的 Network Extension nehelper 服务，真实 Packet Tunnel 不能在这个模拟器里启动。请用 Simulator Preview 测 UI，或用带 packet-tunnel-provider entitlement 的真机包测试真实 VPN。"
@@ -417,8 +431,15 @@ final class IOSVPNController: ObservableObject {
             #endif
         }
 
+        if description.localizedCaseInsensitiveContains("entitlement") ||
+            description.localizedCaseInsensitiveContains("permission") ||
+            description.localizedCaseInsensitiveContains("not allowed") ||
+            description.localizedCaseInsensitiveContains("denied") {
+            return "连接失败：当前签名或 provisioning profile 没有可用的 Network Extension / packet-tunnel-provider 权限。请用 Apple Developer 证书同时签宿主 App 和 PacketTunnel.appex，并先运行 scripts/check-ios-vpn-signing.sh 检查产物。"
+        }
+
         let parts = [
-            nsError.localizedDescription,
+            description,
             nsError.localizedFailureReason,
             nsError.localizedRecoverySuggestion,
         ]
