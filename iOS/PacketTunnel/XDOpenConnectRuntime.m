@@ -358,23 +358,23 @@ typedef struct {
 
     XDOpenConnectSymbols symbols = {0};
     symbols.handle = handle;
-    if (![self loadSymbol:@"openconnect_init_ssl" handle:handle target:(void **)&symbols.init_ssl error:error] ||
-        ![self loadSymbol:@"openconnect_vpninfo_new" handle:handle target:(void **)&symbols.vpninfo_new error:error] ||
-        ![self loadSymbol:@"openconnect_vpninfo_free" handle:handle target:(void **)&symbols.vpninfo_free error:error] ||
-        ![self loadSymbol:@"openconnect_set_protocol" handle:handle target:(void **)&symbols.set_protocol error:error] ||
-        ![self loadSymbol:@"openconnect_parse_url" handle:handle target:(void **)&symbols.parse_url error:error] ||
-        ![self loadSymbol:@"openconnect_obtain_cookie" handle:handle target:(void **)&symbols.obtain_cookie error:error] ||
-        ![self loadSymbol:@"openconnect_make_cstp_connection" handle:handle target:(void **)&symbols.make_cstp_connection error:error] ||
-        ![self loadSymbol:@"openconnect_setup_dtls" handle:handle target:(void **)&symbols.setup_dtls error:error] ||
-        ![self loadSymbol:@"openconnect_setup_cmd_pipe" handle:handle target:(void **)&symbols.setup_cmd_pipe error:error] ||
-        ![self loadSymbol:@"openconnect_setup_tun_fd" handle:handle target:(void **)&symbols.setup_tun_fd error:error] ||
-        ![self loadSymbol:@"openconnect_mainloop" handle:handle target:(void **)&symbols.mainloop error:error] ||
-        ![self loadSymbol:@"openconnect_get_ip_info" handle:handle target:(void **)&symbols.get_ip_info error:error] ||
-        ![self loadSymbol:@"openconnect_set_option_value" handle:handle target:(void **)&symbols.set_option_value error:error] ||
-        ![self loadSymbol:@"openconnect_set_protect_socket_handler" handle:handle target:(void **)&symbols.set_protect_socket_handler error:error] ||
-        ![self loadSymbol:@"openconnect_set_setup_tun_handler" handle:handle target:(void **)&symbols.set_setup_tun_handler error:error] ||
-        ![self loadSymbol:@"openconnect_set_stats_handler" handle:handle target:(void **)&symbols.set_stats_handler error:error] ||
-        ![self loadSymbol:@"openconnect_set_loglevel" handle:handle target:(void **)&symbols.set_loglevel error:error]) {
+    if (![self loadSymbol:"openconnect_init_ssl" handle:handle target:(void **)&symbols.init_ssl error:error] ||
+        ![self loadSymbol:"openconnect_vpninfo_new" handle:handle target:(void **)&symbols.vpninfo_new error:error] ||
+        ![self loadSymbol:"openconnect_vpninfo_free" handle:handle target:(void **)&symbols.vpninfo_free error:error] ||
+        ![self loadSymbol:"openconnect_set_protocol" handle:handle target:(void **)&symbols.set_protocol error:error] ||
+        ![self loadSymbol:"openconnect_parse_url" handle:handle target:(void **)&symbols.parse_url error:error] ||
+        ![self loadSymbol:"openconnect_obtain_cookie" handle:handle target:(void **)&symbols.obtain_cookie error:error] ||
+        ![self loadSymbol:"openconnect_make_cstp_connection" handle:handle target:(void **)&symbols.make_cstp_connection error:error] ||
+        ![self loadSymbol:"openconnect_setup_dtls" handle:handle target:(void **)&symbols.setup_dtls error:error] ||
+        ![self loadSymbol:"openconnect_setup_cmd_pipe" handle:handle target:(void **)&symbols.setup_cmd_pipe error:error] ||
+        ![self loadSymbol:"openconnect_setup_tun_fd" handle:handle target:(void **)&symbols.setup_tun_fd error:error] ||
+        ![self loadSymbol:"openconnect_mainloop" handle:handle target:(void **)&symbols.mainloop error:error] ||
+        ![self loadSymbol:"openconnect_get_ip_info" handle:handle target:(void **)&symbols.get_ip_info error:error] ||
+        ![self loadSymbol:"openconnect_set_option_value" handle:handle target:(void **)&symbols.set_option_value error:error] ||
+        ![self loadSymbol:"openconnect_set_protect_socket_handler" handle:handle target:(void **)&symbols.set_protect_socket_handler error:error] ||
+        ![self loadSymbol:"openconnect_set_setup_tun_handler" handle:handle target:(void **)&symbols.set_setup_tun_handler error:error] ||
+        ![self loadSymbol:"openconnect_set_stats_handler" handle:handle target:(void **)&symbols.set_stats_handler error:error] ||
+        ![self loadSymbol:"openconnect_set_loglevel" handle:handle target:(void **)&symbols.set_loglevel error:error]) {
         dlclose(handle);
         return NO;
     }
@@ -447,11 +447,17 @@ typedef struct {
     NSString *address = [self stringFromCString:ipInfo ? ipInfo->addr : NULL fallback:@"198.18.0.2"];
     NSString *netmask = [self stringFromCString:ipInfo ? ipInfo->netmask : NULL fallback:@"255.255.255.255"];
     NEIPv4Settings *ipv4 = [[NEIPv4Settings alloc] initWithAddresses:@[address] subnetMasks:@[netmask]];
-    if ([[self stringValue:self.configuration[@"runningMode"]] isEqualToString:@"split"]) {
+    NSString *runningMode = [self stringValue:self.configuration[@"runningMode"]];
+    if ([runningMode isEqualToString:@"split"]) {
         NSArray<NEIPv4Route *> *routes = [self routesFromCIDRs:self.configuration[@"splitCIDRs"]];
         ipv4.includedRoutes = routes.count > 0 ? routes : [self routesFromOpenConnectSplitIncludes:ipInfo];
     } else {
         ipv4.includedRoutes = @[[NEIPv4Route defaultRoute]];
+    }
+    NSArray<NEIPv4Route *> *excludedRoutes = [self excludedRoutesForIPInfo:ipInfo server:server];
+    if (excludedRoutes.count > 0) {
+        ipv4.excludedRoutes = excludedRoutes;
+        NSLog(@"[XDVPN] applying %lu excluded IPv4 route(s)", (unsigned long)excludedRoutes.count);
     }
     settings.IPv4Settings = ipv4;
 
@@ -459,7 +465,7 @@ typedef struct {
     if (dnsServers.count > 0) {
         NEDNSSettings *dns = [[NEDNSSettings alloc] initWithServers:dnsServers];
         NSArray<NSString *> *domains = [self stringArray:self.configuration[@"splitDomains"]];
-        if ([[self stringValue:self.configuration[@"runningMode"]] isEqualToString:@"split"]) {
+        if ([runningMode isEqualToString:@"split"]) {
             dns.matchDomains = domains.count > 0 ? domains : @[];
         } else {
             dns.matchDomains = @[@""];
@@ -496,6 +502,31 @@ typedef struct {
     return routes;
 }
 
+- (NSArray<NEIPv4Route *> *)excludedRoutesForIPInfo:(const struct oc_ip_info *)ipInfo server:(NSString *)server {
+    NSMutableArray<NEIPv4Route *> *routes = [NSMutableArray array];
+    NSMutableSet<NSString *> *seen = [NSMutableSet set];
+    void (^addRoute)(NEIPv4Route *) = ^(NEIPv4Route *route) {
+        if (!route) { return; }
+        NSString *key = [NSString stringWithFormat:@"%@/%@", route.destinationAddress, route.destinationSubnetMask];
+        if ([seen containsObject:key]) { return; }
+        [seen addObject:key];
+        [routes addObject:route];
+    };
+
+    if (ipInfo) {
+        for (struct oc_split_include *exclude = ipInfo->split_excludes; exclude; exclude = exclude->next) {
+            NSString *route = [self stringFromCString:exclude->route fallback:nil];
+            addRoute([self routeFromCIDR:route]);
+        }
+
+        NSString *gateway = [self stringFromCString:ipInfo->gateway_addr fallback:nil];
+        addRoute([self hostRouteForIPv4Address:gateway]);
+    }
+
+    addRoute([self hostRouteForIPv4Address:[self ipv4LiteralFromServerString:server]]);
+    return routes;
+}
+
 - (NSArray<NEIPv4Route *> *)routesFromCIDRs:(id)value {
     NSMutableArray<NEIPv4Route *> *routes = [NSMutableArray array];
     for (NSString *cidr in [self stringArray:value]) {
@@ -514,6 +545,39 @@ typedef struct {
     NSString *mask = [self subnetMaskForPrefix:prefix];
     if (!mask) { return nil; }
     return [[NEIPv4Route alloc] initWithDestinationAddress:parts[0] subnetMask:mask];
+}
+
+- (NEIPv4Route *)hostRouteForIPv4Address:(NSString *)address {
+    if (![self isIPv4Literal:address]) { return nil; }
+    return [[NEIPv4Route alloc] initWithDestinationAddress:address subnetMask:@"255.255.255.255"];
+}
+
+- (NSString *)ipv4LiteralFromServerString:(NSString *)server {
+    NSString *trimmed = [server stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (trimmed.length == 0) { return nil; }
+
+    NSURLComponents *components = [NSURLComponents componentsWithString:trimmed];
+    NSString *host = components.host;
+    if (host.length == 0) {
+        host = trimmed;
+        NSRange slash = [host rangeOfString:@"/"];
+        if (slash.location != NSNotFound) {
+            host = [host substringToIndex:slash.location];
+        }
+        NSArray<NSString *> *colonParts = [host componentsSeparatedByString:@":"];
+        if (colonParts.count == 2) {
+            host = colonParts.firstObject;
+        }
+    }
+
+    host = [host stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    return [self isIPv4Literal:host] ? host : nil;
+}
+
+- (BOOL)isIPv4Literal:(NSString *)value {
+    if (value.length == 0) { return NO; }
+    struct in_addr address;
+    return inet_pton(AF_INET, value.UTF8String, &address) == 1;
 }
 
 - (NSString *)subnetMaskForPrefix:(NSInteger)prefix {
@@ -735,6 +799,7 @@ static void XDProgress(void *privdata, int level, const char *fmt, ...) {
 }
 
 static void XDProtectSocket(void *privdata, int fd) {
+    // iOS has no public protect(fd) API; gateway bypass is modeled with excludedRoutes.
     (void)privdata;
     (void)fd;
 }
