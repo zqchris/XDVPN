@@ -38,6 +38,7 @@ struct VPNDashboardView: View {
                                 isConnected: isTunnelConnected,
                                 isBusy: isPowerTransitioning,
                                 isEnabled: canUsePowerButton,
+                                tone: powerRingTone,
                                 ringRotation: ringRotation
                             )
                         }
@@ -128,9 +129,17 @@ struct VPNDashboardView: View {
     }
 
     private var statusColor: Color {
-        if isTunnelConnected { return Color(red: 0.45, green: 1.0, blue: 0.76) }
+        if powerRingTone == .danger { return Color(red: 1.0, green: 0.36, blue: 0.34) }
+        if powerRingTone == .warning { return Color(red: 1.0, green: 0.76, blue: 0.24) }
+        if isTunnelConnected { return Color(red: 0.18, green: 0.82, blue: 1.0) }
         if isPowerTransitioning { return Color(red: 0.18, green: 0.82, blue: 1.0) }
         return .white.opacity(0.72)
+    }
+
+    private var powerRingTone: PowerRingTone {
+        if controller.status == .reasserting { return .warning }
+        if controller.lastError != nil && !isPowerTransitioning { return .danger }
+        return .primary
     }
 
     private func handlePowerTap() {
@@ -202,16 +211,58 @@ private struct HeaderView: View {
     }
 }
 
+private enum PowerRingTone: Equatable {
+    case primary
+    case warning
+    case danger
+
+    var ringColors: [Color] {
+        switch self {
+        case .primary:
+            return [
+                Color(red: 0.16, green: 0.52, blue: 1.0),
+                Color(red: 0.18, green: 0.82, blue: 1.0),
+                Color(red: 0.16, green: 0.52, blue: 1.0),
+            ]
+        case .warning:
+            return [
+                Color(red: 1.0, green: 0.62, blue: 0.16),
+                Color(red: 1.0, green: 0.84, blue: 0.30),
+                Color(red: 1.0, green: 0.62, blue: 0.16),
+            ]
+        case .danger:
+            return [
+                Color(red: 1.0, green: 0.28, blue: 0.34),
+                Color(red: 1.0, green: 0.48, blue: 0.26),
+                Color(red: 1.0, green: 0.28, blue: 0.34),
+            ]
+        }
+    }
+
+    var glowColor: Color {
+        switch self {
+        case .primary:
+            return Color(red: 0.12, green: 0.68, blue: 1.0)
+        case .warning:
+            return Color(red: 1.0, green: 0.68, blue: 0.16)
+        case .danger:
+            return Color(red: 1.0, green: 0.25, blue: 0.24)
+        }
+    }
+}
+
 private struct PowerControlView: View {
     let isBusy: Bool
     let isConnected: Bool
     let isEnabled: Bool
+    let tone: PowerRingTone
     let ringRotation: Double
 
-    init(isConnected: Bool, isBusy: Bool, isEnabled: Bool, ringRotation: Double) {
+    init(isConnected: Bool, isBusy: Bool, isEnabled: Bool, tone: PowerRingTone, ringRotation: Double) {
         self.isConnected = isConnected
         self.isBusy = isBusy
         self.isEnabled = isEnabled
+        self.tone = tone
         self.ringRotation = ringRotation
     }
 
@@ -261,20 +312,11 @@ private struct PowerControlView: View {
 
     @ViewBuilder
     private var ringStroke: some View {
-        if isBusy {
-            Circle()
-                .trim(from: 0.08, to: 0.74)
-                .stroke(
-                    ringGradient,
-                    style: StrokeStyle(lineWidth: 17, lineCap: .round)
-                )
-        } else {
-            Circle()
-                .stroke(
-                    ringGradient,
-                    style: StrokeStyle(lineWidth: 17, lineCap: .round)
-                )
-        }
+        Circle()
+            .stroke(
+                ringGradient,
+                style: StrokeStyle(lineWidth: 17, lineCap: .round)
+            )
     }
 
     private var ringGradient: AngularGradient {
@@ -290,29 +332,11 @@ private struct PowerControlView: View {
         guard isEnabled else {
             return [.white.opacity(0.12), .white.opacity(0.08), .white.opacity(0.12)]
         }
-        if isConnected {
-            return [
-                Color(red: 0.42, green: 0.98, blue: 0.74),
-                Color(red: 0.18, green: 0.86, blue: 0.58),
-                Color(red: 0.42, green: 0.98, blue: 0.74),
-            ]
-        }
-        if isBusy {
-            return [
-                Color(red: 0.14, green: 0.9, blue: 1.0),
-                Color(red: 0.16, green: 0.46, blue: 1.0),
-                Color(red: 0.14, green: 0.9, blue: 1.0),
-            ]
-        }
-        return [
-            Color(red: 0.16, green: 0.52, blue: 1.0),
-            Color(red: 0.18, green: 0.82, blue: 1.0),
-            Color(red: 0.16, green: 0.52, blue: 1.0),
-        ]
+        return tone.ringColors
     }
 
     private var glowColor: Color {
-        isConnected ? Color(red: 0.34, green: 0.98, blue: 0.74) : Color(red: 0.12, green: 0.68, blue: 1.0)
+        tone.glowColor
     }
 
     private var glowOpacity: Double {
@@ -326,23 +350,21 @@ private struct PowerControlView: View {
     }
 
     private var innerStartColor: Color {
-        if isConnected { return Color(red: 0.08, green: 0.28, blue: 0.2) }
-        if isBusy { return Color(red: 0.09, green: 0.2, blue: 0.3) }
-        if isEnabled { return Color(red: 0.08, green: 0.16, blue: 0.28) }
+        if isBusy { return Color(red: 0.09, green: 0.42, blue: 0.84) }
+        if isConnected { return Color(red: 0.08, green: 0.34, blue: 0.74) }
+        if isEnabled { return Color(red: 0.08, green: 0.27, blue: 0.60) }
         return Color(red: 0.12, green: 0.14, blue: 0.18)
     }
 
     private var innerEndColor: Color {
-        if isConnected { return Color(red: 0.035, green: 0.12, blue: 0.09) }
-        if isBusy { return Color(red: 0.035, green: 0.07, blue: 0.13) }
-        if isEnabled { return Color(red: 0.035, green: 0.07, blue: 0.14) }
+        if isBusy { return Color(red: 0.02, green: 0.12, blue: 0.34) }
+        if isConnected { return Color(red: 0.018, green: 0.10, blue: 0.30) }
+        if isEnabled { return Color(red: 0.018, green: 0.08, blue: 0.24) }
         return Color(red: 0.055, green: 0.06, blue: 0.08)
     }
 
     private var iconColor: Color {
-        if isConnected { return Color(red: 0.45, green: 1.0, blue: 0.76) }
-        if isBusy { return Color(red: 0.18, green: 0.82, blue: 1.0) }
-        if isEnabled { return Color(red: 0.22, green: 0.68, blue: 1.0) }
+        if isEnabled { return .white.opacity(isBusy || isConnected ? 0.95 : 0.88) }
         return .white.opacity(0.2)
     }
 }
