@@ -13,8 +13,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let configuration = tunnelProtocol?.providerConfiguration ?? [:]
         let server = configuration["server"] as? String ?? tunnelProtocol?.serverAddress ?? "unknown"
         let protocolName = configuration["protocol"] as? String ?? "anyconnect"
+        let runningMode = configuration["runningMode"] as? String ?? "full"
+        let splitCIDRs = configuration["splitCIDRs"] as? [String] ?? []
+        let splitDomains = configuration["splitDomains"] as? [String] ?? []
 
-        logger.error("OpenConnect engine is not linked. server=\(server, privacy: .private) protocol=\(protocolName, privacy: .public)")
+        logger.error("OpenConnect engine is not linked. server=\(server, privacy: .private) protocol=\(protocolName, privacy: .public) mode=\(runningMode, privacy: .public) cidrs=\(splitCIDRs.count, privacy: .public) domains=\(splitDomains.count, privacy: .public)")
         completionHandler(PacketTunnelStartFailure.openConnectEngineUnavailable(
             server: server,
             protocolName: protocolName

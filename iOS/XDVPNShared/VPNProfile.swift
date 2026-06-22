@@ -16,6 +16,19 @@ struct VPNProfile: Codable, Equatable {
     var protocolName: OpenConnectProtocol = .anyconnect
     var server: String = ""
     var username: String = ""
+    var routePolicy: RoutePolicy = RoutePolicy()
+
+    init(
+        protocolName: OpenConnectProtocol = .anyconnect,
+        server: String = "",
+        username: String = "",
+        routePolicy: RoutePolicy = RoutePolicy()
+    ) {
+        self.protocolName = protocolName
+        self.server = server
+        self.username = username
+        self.routePolicy = routePolicy
+    }
 
     var canConnect: Bool {
         !server.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -27,12 +40,39 @@ struct VPNProfile: Codable, Equatable {
     }
 
     var providerConfiguration: [String: Any] {
-        [
+        let includedCIDRs = routePolicy.isEnabled ? routePolicy.includedCIDRs : []
+        let includedDomains = routePolicy.isEnabled ? routePolicy.includedDomainSuffixes : []
+        let policyHasRules = !includedCIDRs.isEmpty || !includedDomains.isEmpty
+        let splitEnabled = routePolicy.isEnabled && policyHasRules
+
+        return [
             "configurationVersion": SharedConstants.providerConfigurationVersion,
             "protocol": protocolName.rawValue,
             "server": server,
             "username": username,
-            "runningMode": "full",
+            "runningMode": splitEnabled ? "split" : "full",
+            "splitEnabled": splitEnabled,
+            "splitCIDRs": includedCIDRs,
+            "splitDomains": includedDomains,
+            "routePolicyEnabled": routePolicy.isEnabled,
+            "routePolicyMode": "vpn-included",
         ]
+    }
+}
+
+extension VPNProfile {
+    private enum CodingKeys: String, CodingKey {
+        case protocolName
+        case server
+        case username
+        case routePolicy
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        protocolName = try container.decodeIfPresent(OpenConnectProtocol.self, forKey: .protocolName) ?? .anyconnect
+        server = try container.decodeIfPresent(String.self, forKey: .server) ?? ""
+        username = try container.decodeIfPresent(String.self, forKey: .username) ?? ""
+        routePolicy = try container.decodeIfPresent(RoutePolicy.self, forKey: .routePolicy) ?? RoutePolicy()
     }
 }

@@ -52,12 +52,17 @@ struct VPNDashboardView: View {
 
                     ServerSummaryView(
                         server: displayServer,
-                        mode: "Global VPN"
+                        mode: routeModeTitle
                     )
 
                     SettingsPanelView(
                         profile: $controller.profile,
                         password: $controller.password,
+                        focusedField: $focusedField
+                    )
+
+                    RoutePolicyPanelView(
+                        policy: $controller.profile.routePolicy,
                         focusedField: $focusedField
                     )
 
@@ -96,6 +101,12 @@ struct VPNDashboardView: View {
 
     private var displayServer: String {
         controller.profile.server.isEmpty ? "vpn.example.com" : controller.profile.server
+    }
+
+    private var routeModeTitle: String {
+        controller.profile.routePolicy.isEnabled && controller.profile.routePolicy.hasRules
+            ? "Manual VPN Policy"
+            : "Global VPN"
     }
 
     private var statusText: String {
@@ -461,12 +472,187 @@ private struct SettingsSecureRow: View {
     }
 }
 
+private struct RoutePolicyPanelView: View {
+    @Binding var policy: RoutePolicy
+    var focusedField: FocusState<Field?>.Binding
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Toggle(isOn: $policy.isEnabled) {
+                HStack(spacing: 16) {
+                    SettingsIcon(name: "arrow.triangle.branch", color: policyColor)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("VPN Policy")
+                            .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text(policy.isEnabled ? policySummary : "Global VPN")
+                            .font(.system(size: 15, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.46))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.74)
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(policyColor)
+            .frame(height: 72)
+
+            if policy.isEnabled {
+                DividerView()
+
+                PolicyPresetSection(policy: $policy)
+
+                DividerView()
+
+                PolicyEditorRow(
+                    icon: "number",
+                    title: "Custom CIDR",
+                    placeholder: "172.20.0.0/16, 10.20.30.0/24",
+                    text: $policy.customCIDRText,
+                    focusedField: focusedField,
+                    field: .customCIDRs
+                )
+
+                DividerView()
+
+                PolicyEditorRow(
+                    icon: "at",
+                    title: "Domain Suffixes",
+                    placeholder: "corp.example.com, *.internal.example",
+                    text: $policy.domainSuffixText,
+                    focusedField: focusedField,
+                    field: .domainSuffixes
+                )
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+        .background(PanelBackground(cornerRadius: 18))
+        .animation(.smooth(duration: 0.18), value: policy.isEnabled)
+    }
+
+    private var policyColor: Color {
+        Color(red: 0.2, green: 0.88, blue: 0.94)
+    }
+
+    private var policySummary: String {
+        let cidrCount = policy.includedCIDRs.count
+        let domainCount = policy.includedDomainSuffixes.count
+        if cidrCount == 0 && domainCount == 0 { return "No rules selected" }
+
+        var parts: [String] = []
+        if cidrCount > 0 { parts.append("\(cidrCount) CIDR") }
+        if domainCount > 0 { parts.append("\(domainCount) domains") }
+        return parts.joined(separator: " · ") + " via VPN"
+    }
+}
+
+private struct PolicyPresetSection: View {
+    @Binding var policy: RoutePolicy
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 126), spacing: 8, alignment: .leading),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                SettingsIcon(name: "point.topleft.down.curvedto.point.bottomright.up")
+                Text("Private CIDR")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                PolicyChip(label: "10.0.0.0/8", isOn: $policy.includePrivate10)
+                PolicyChip(label: "172.16.0.0/12", isOn: $policy.includePrivate172)
+                PolicyChip(label: "192.168.0.0/16", isOn: $policy.includePrivate192)
+            }
+        }
+        .padding(.vertical, 14)
+    }
+}
+
+private struct PolicyChip: View {
+    let label: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button {
+            isOn.toggle()
+        } label: {
+            HStack(spacing: 7) {
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(isOn ? Color(red: 0.2, green: 0.9, blue: 0.95) : .white.opacity(0.48))
+            .frame(maxWidth: .infinity)
+            .frame(height: 38)
+            .padding(.horizontal, 10)
+            .background(
+                Capsule()
+                    .fill(isOn ? Color(red: 0.08, green: 0.34, blue: 0.42).opacity(0.72) : Color.white.opacity(0.055))
+            )
+            .overlay {
+                Capsule()
+                    .stroke(isOn ? Color(red: 0.2, green: 0.9, blue: 0.95).opacity(0.38) : .white.opacity(0.08), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct PolicyEditorRow: View {
+    let icon: String
+    let title: String
+    let placeholder: String
+    @Binding var text: String
+    var focusedField: FocusState<Field?>.Binding
+    let field: Field
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack(spacing: 16) {
+                SettingsIcon(name: icon)
+                Text(title)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+
+            TextField(placeholder, text: $text, axis: .vertical)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused(focusedField, equals: field)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.78))
+                .lineLimit(3, reservesSpace: true)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.black.opacity(0.2))
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .padding(.vertical, 14)
+    }
+}
+
 private struct PacketTunnelNoteView: View {
     let lastError: String?
 
     var body: some View {
         VStack(spacing: 10) {
-            Text(lastError ?? "XDVPN will establish a full-device VPN connection.")
+            Text(lastError ?? "VPN settings are saved into the packet tunnel configuration.")
                 .font(.system(size: 15, weight: .medium, design: .rounded))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(lastError == nil ? .white.opacity(0.46) : Color(red: 1.0, green: 0.45, blue: 0.38))
@@ -526,6 +712,8 @@ private enum Field {
     case server
     case username
     case password
+    case customCIDRs
+    case domainSuffixes
 }
 
 #Preview("Disconnected") {

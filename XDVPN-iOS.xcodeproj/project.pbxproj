@@ -11,6 +11,8 @@
 		A00000000000000000000062 /* SharedConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000060 /* SharedConstants.swift */; };
 		A00000000000000000000064 /* VPNProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* VPNProfile.swift */; };
 		A00000000000000000000065 /* VPNProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000063 /* VPNProfile.swift */; };
+		A00000000000000000000093 /* RoutePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000095 /* RoutePolicy.swift */; };
+		A00000000000000000000094 /* RoutePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000095 /* RoutePolicy.swift */; };
 		A00000000000000000000070 /* XDVPNiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000069 /* XDVPNiOSApp.swift */; };
 		A00000000000000000000072 /* VPNDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000071 /* VPNDashboardView.swift */; };
 		A00000000000000000000074 /* IOSVPNController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000073 /* IOSVPNController.swift */; };
@@ -51,6 +53,7 @@
 		A00000000000000000000021 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000060 /* SharedConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedConstants.swift; sourceTree = "<group>"; };
 		A00000000000000000000063 /* VPNProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNProfile.swift; sourceTree = "<group>"; };
+		A00000000000000000000095 /* RoutePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutePolicy.swift; sourceTree = "<group>"; };
 		A00000000000000000000069 /* XDVPNiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XDVPNiOSApp.swift; sourceTree = "<group>"; };
 		A00000000000000000000071 /* VPNDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNDashboardView.swift; sourceTree = "<group>"; };
 		A00000000000000000000073 /* IOSVPNController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSVPNController.swift; sourceTree = "<group>"; };
@@ -118,6 +121,7 @@
 			children = (
 				A00000000000000000000060 /* SharedConstants.swift */,
 				A00000000000000000000063 /* VPNProfile.swift */,
+				A00000000000000000000095 /* RoutePolicy.swift */,
 			);
 			path = XDVPNShared;
 			sourceTree = "<group>";
@@ -258,6 +262,7 @@
 				A00000000000000000000076 /* KeychainPersistentReferenceStore.swift in Sources */,
 				A00000000000000000000061 /* SharedConstants.swift in Sources */,
 				A00000000000000000000064 /* VPNProfile.swift in Sources */,
+				A00000000000000000000093 /* RoutePolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,6 +273,7 @@
 				A00000000000000000000080 /* PacketTunnelProvider.swift in Sources */,
 				A00000000000000000000062 /* SharedConstants.swift in Sources */,
 				A00000000000000000000065 /* VPNProfile.swift in Sources */,
+				A00000000000000000000094 /* RoutePolicy.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
