@@ -105,7 +105,11 @@ iOS 版本位于 [`iOS/`](iOS/)，工程文件是 `XDVPN-iOS.xcodeproj`。当前
 ./scripts/build-ios.sh
 ```
 
-iOS 不能像 macOS 版一样启动 bundled `openconnect` 进程；真正连通 AnyConnect/OpenConnect 还需要把协议引擎移植进 Packet Tunnel extension，并使用 Apple 授权的 Network Extension entitlement 签名。
+iOS 不能像 macOS 版一样启动 bundled `openconnect` 进程；当前通过 Packet Tunnel extension 内的 OpenConnect runtime bridge 建立隧道。真实 VPN 必须用 Apple Developer 证书和带 `packet-tunnel-provider` 的 Network Extension entitlement 签名后在 iPhone 上测试：
+
+```bash
+DEVELOPMENT_TEAM=TEAMID ./scripts/build-ios-device.sh
+```
 
 ## 卸载
 

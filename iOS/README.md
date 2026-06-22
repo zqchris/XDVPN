@@ -47,7 +47,12 @@ Build the device OpenConnect runtime for a signed iPhone build:
 ./scripts/build-ios-openconnect-runtime.sh iphoneos --skip-app-build
 ```
 
-For a real device build, set a development team in `XDVPN-iOS.xcodeproj` and use bundle identifiers that have the `packet-tunnel-provider` entitlement.
+Build a signed iPhone app after configuring an Apple Developer Team ID and bundle identifiers that have the `packet-tunnel-provider` entitlement:
+
+```bash
+DEVELOPMENT_TEAM=TEAMID ./scripts/build-ios-device.sh
+```
+
 Without an Apple Developer signing identity and a provisioning profile that carries the Network Extension entitlement, iOS will not start the real Packet Tunnel provider.
 
 Before testing on a physical iPhone, check the signed app bundle:
