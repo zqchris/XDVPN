@@ -19,9 +19,11 @@
 		A00000000000000000000076 /* KeychainPersistentReferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000075 /* KeychainPersistentReferenceStore.swift */; };
 		A00000000000000000000080 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000079 /* PacketTunnelProvider.swift */; };
 		A00000000000000000000097 /* PacketTunnelEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000096 /* PacketTunnelEngine.swift */; };
+		A00000000000000000000101 /* XDOpenConnectRuntime.m in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000100 /* XDOpenConnectRuntime.m */; };
 		A00000000000000000000084 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000083 /* NetworkExtension.framework */; };
 		A00000000000000000000085 /* NetworkExtension.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000083 /* NetworkExtension.framework */; };
 		A00000000000000000000087 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000086 /* Security.framework */; };
+		A00000000000000000000102 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A00000000000000000000086 /* Security.framework */; };
 		A00000000000000000000092 /* PacketTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A00000000000000000000021 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -63,6 +65,9 @@
 		A00000000000000000000078 /* XDVPNiOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XDVPNiOS.entitlements; sourceTree = "<group>"; };
 		A00000000000000000000079 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		A00000000000000000000096 /* PacketTunnelEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngine.swift; sourceTree = "<group>"; };
+		A00000000000000000000098 /* PacketTunnel-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "PacketTunnel-Bridging-Header.h"; sourceTree = "<group>"; };
+		A00000000000000000000099 /* XDOpenConnectRuntime.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XDOpenConnectRuntime.h; sourceTree = "<group>"; };
+		A00000000000000000000100 /* XDOpenConnectRuntime.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = XDOpenConnectRuntime.m; sourceTree = "<group>"; };
 		A00000000000000000000081 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00000000000000000000082 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		A00000000000000000000083 /* NetworkExtension.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetworkExtension.framework; path = System/Library/Frameworks/NetworkExtension.framework; sourceTree = SDKROOT; };
@@ -84,6 +89,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A00000000000000000000085 /* NetworkExtension.framework in Frameworks */,
+				A00000000000000000000102 /* Security.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -146,6 +152,9 @@
 			children = (
 				A00000000000000000000079 /* PacketTunnelProvider.swift */,
 				A00000000000000000000096 /* PacketTunnelEngine.swift */,
+				A00000000000000000000098 /* PacketTunnel-Bridging-Header.h */,
+				A00000000000000000000099 /* XDOpenConnectRuntime.h */,
+				A00000000000000000000100 /* XDOpenConnectRuntime.m */,
 				A00000000000000000000081 /* Info.plist */,
 				A00000000000000000000082 /* PacketTunnel.entitlements */,
 			);
@@ -275,6 +284,7 @@
 			files = (
 				A00000000000000000000080 /* PacketTunnelProvider.swift in Sources */,
 				A00000000000000000000097 /* PacketTunnelEngine.swift in Sources */,
+				A00000000000000000000101 /* XDOpenConnectRuntime.m in Sources */,
 				A00000000000000000000062 /* SharedConstants.swift in Sources */,
 				A00000000000000000000065 /* VPNProfile.swift in Sources */,
 				A00000000000000000000094 /* RoutePolicy.swift in Sources */,
@@ -470,6 +480,7 @@
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "iOS/PacketTunnel/PacketTunnel-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -496,6 +507,7 @@
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
+				SWIFT_OBJC_BRIDGING_HEADER = "iOS/PacketTunnel/PacketTunnel-Bridging-Header.h";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

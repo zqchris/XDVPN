@@ -35,17 +35,20 @@ struct VPNProfile: Codable, Equatable {
     var protocolName: OpenConnectProtocol = .anyconnect
     var server: String = ""
     var username: String = ""
+    var allowUntrustedServerCertificate: Bool = false
     var routePolicy: RoutePolicy = RoutePolicy()
 
     init(
         protocolName: OpenConnectProtocol = .anyconnect,
         server: String = "",
         username: String = "",
+        allowUntrustedServerCertificate: Bool = false,
         routePolicy: RoutePolicy = RoutePolicy()
     ) {
         self.protocolName = protocolName
         self.server = server
         self.username = username
+        self.allowUntrustedServerCertificate = allowUntrustedServerCertificate
         self.routePolicy = routePolicy
     }
 
@@ -69,6 +72,7 @@ struct VPNProfile: Codable, Equatable {
             "protocol": protocolName.rawValue,
             "server": server,
             "username": username,
+            "allowUntrustedServerCertificate": allowUntrustedServerCertificate,
             "engineMode": engineMode,
             "runningMode": splitEnabled ? "split" : "full",
             "splitEnabled": splitEnabled,
@@ -85,6 +89,7 @@ extension VPNProfile {
         case protocolName
         case server
         case username
+        case allowUntrustedServerCertificate
         case routePolicy
     }
 
@@ -93,6 +98,7 @@ extension VPNProfile {
         protocolName = try container.decodeIfPresent(OpenConnectProtocol.self, forKey: .protocolName) ?? .anyconnect
         server = try container.decodeIfPresent(String.self, forKey: .server) ?? ""
         username = try container.decodeIfPresent(String.self, forKey: .username) ?? ""
+        allowUntrustedServerCertificate = try container.decodeIfPresent(Bool.self, forKey: .allowUntrustedServerCertificate) ?? false
         routePolicy = try container.decodeIfPresent(RoutePolicy.self, forKey: .routePolicy) ?? RoutePolicy()
     }
 }

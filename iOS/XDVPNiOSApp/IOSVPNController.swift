@@ -27,6 +27,7 @@ final class IOSVPNController: ObservableObject {
     private var manager: NETunnelProviderManager?
     private var statusObserver: NSObjectProtocol?
     private var isConnectionAttemptInFlight = false
+    private var connectionWatchdogTask: Task<Void, Never>?
 
     init(loadOnStart: Bool = true) {
         self.profile = Self.loadStoredProfile()
@@ -41,10 +42,11 @@ final class IOSVPNController: ObservableObject {
         if let statusObserver {
             NotificationCenter.default.removeObserver(statusObserver)
         }
+        connectionWatchdogTask?.cancel()
     }
 
     var isConnected: Bool {
-        status == .connected || status == .connecting || status == .reasserting
+        status == .connected
     }
 
     var statusTitle: String {
@@ -60,7 +62,10 @@ final class IOSVPNController: ObservableObject {
     }
 
     func reload() async {
-        await runBusyTask {
+        isBusy = true
+        defer { isBusy = false }
+
+        do {
             let managers = try await Self.loadManagers()
             manager = managers.first(where: {
                 $0.localizedDescription == SharedConstants.managerDescription
@@ -68,6 +73,8 @@ final class IOSVPNController: ObservableObject {
                 ($0.protocolConfiguration as? NETunnelProviderProtocol)?
                     .providerBundleIdentifier == SharedConstants.providerBundleIdentifier
             })
+            status = manager?.connection.status ?? .invalid
+        } catch {
             status = manager?.connection.status ?? .invalid
         }
     }
@@ -92,8 +99,19 @@ final class IOSVPNController: ObservableObject {
             return
         }
 
+        guard hasUsablePasswordCredential else {
+            presentError("请填写 VPN 密码。iOS 的 Packet Tunnel 只能通过 Keychain passwordReference 把密码交给扩展。")
+            return
+        }
+
+        if let runtimeError = openConnectRuntimeUnavailableMessage() {
+            presentError(runtimeError)
+            return
+        }
+
         isConnectionAttemptInFlight = true
         status = .connecting
+        startConnectionWatchdog()
         try? await Task.sleep(nanoseconds: 350_000_000)
 
         await runBusyTask(fallbackStatus: .disconnected) {
@@ -106,11 +124,13 @@ final class IOSVPNController: ObservableObject {
 
         if lastError != nil {
             isConnectionAttemptInFlight = false
+            connectionWatchdogTask?.cancel()
         }
     }
 
     func disconnect() {
         isConnectionAttemptInFlight = false
+        connectionWatchdogTask?.cancel()
         if demoTunnelEnabled {
             disconnectDemoTunnel()
             return
@@ -184,11 +204,18 @@ final class IOSVPNController: ObservableObject {
         switch newStatus {
         case .connected:
             isConnectionAttemptInFlight = false
+            connectionWatchdogTask?.cancel()
             lastError = nil
         case .disconnected, .invalid:
             if previousStatus == .connecting || previousStatus == .reasserting || previousStatus == .connected {
                 isConnectionAttemptInFlight = false
-                presentError(Self.packetTunnelEngineUnavailableMessage)
+                connectionWatchdogTask?.cancel()
+                if lastError == nil {
+                    Task {
+                        let diagnosticMessage = await providerDiagnosticMessage()
+                        presentError(diagnosticMessage ?? Self.tunnelExitedMessage)
+                    }
+                }
             }
         default:
             break
@@ -258,6 +285,90 @@ final class IOSVPNController: ObservableObject {
         return configuration
     }
 
+    private var hasUsablePasswordCredential: Bool {
+        if !password.isEmpty { return true }
+        let protocolConfiguration = manager?.protocolConfiguration as? NETunnelProviderProtocol
+        return protocolConfiguration?.passwordReference != nil
+    }
+
+    private func startConnectionWatchdog() {
+        connectionWatchdogTask?.cancel()
+        connectionWatchdogTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, self.isConnectionAttemptInFlight else { return }
+                self.isConnectionAttemptInFlight = false
+                self.status = self.manager?.connection.status ?? .disconnected
+                self.presentError(Self.connectionTimeoutMessage)
+            }
+        }
+    }
+
+    private func providerDiagnosticMessage() async -> String? {
+        guard let session = manager?.connection as? NETunnelProviderSession else { return nil }
+        let request = Data("diagnostics".utf8)
+
+        do {
+            let response = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
+                do {
+                    try session.sendProviderMessage(request) { response in
+                        continuation.resume(returning: response)
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+            guard let response,
+                  let json = try? JSONSerialization.jsonObject(with: response) as? [String: String],
+                  let message = json["lastStartError"],
+                  !message.isEmpty
+            else { return nil }
+            return message
+        } catch {
+            return nil
+        }
+    }
+
+    private func openConnectRuntimeUnavailableMessage() -> String? {
+        let candidates = Self.openConnectRuntimeCandidates()
+        let fileManager = FileManager.default
+        let found = candidates.contains { candidate in
+            var isDirectory: ObjCBool = false
+            return fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        }
+        guard !found else { return nil }
+
+        return """
+        连接失败：当前 iOS 构建里还没有嵌入 OpenConnect runtime。
+        需要把 libopenconnect.dylib 或 OpenConnect.framework 放进 App/PacketTunnel 的 Frameworks 目录后，Packet Tunnel 才能建立真实 VPN。
+        """
+    }
+
+    private static func openConnectRuntimeCandidates() -> [URL] {
+        var candidates: [URL] = []
+        let bundleURL = Bundle.main.bundleURL
+        let frameworkNames = [
+            "libopenconnect.dylib",
+            "OpenConnect.framework/OpenConnect",
+            "openconnect.framework/openconnect",
+        ]
+
+        let searchRoots: [URL?] = [
+            Bundle.main.privateFrameworksURL,
+            bundleURL.appendingPathComponent("Frameworks"),
+            bundleURL.appendingPathComponent("PlugIns/PacketTunnel.appex/Frameworks"),
+            bundleURL.appendingPathComponent("PlugIns/PacketTunnel.appex"),
+        ]
+
+        for root in searchRoots.compactMap({ $0 }) {
+            for name in frameworkNames {
+                candidates.append(root.appendingPathComponent(name))
+            }
+        }
+        return candidates
+    }
+
     private static func loadStoredProfile() -> VPNProfile {
         guard let data = UserDefaults.standard.data(forKey: "xdvpn.ios.profile"),
               let profile = try? JSONDecoder().decode(VPNProfile.self, from: data)
@@ -288,14 +399,22 @@ final class IOSVPNController: ObservableObject {
         return controller
     }
 
-    private static var packetTunnelEngineUnavailableMessage: String {
-        "连接失败：iOS Packet Tunnel 已启动，但 OpenConnect 协议引擎尚未接入。当前版本只能保存配置和路由策略，还不能真正建立 AnyConnect/OpenConnect 隧道。"
+    private static var tunnelExitedMessage: String {
+        "连接失败：Packet Tunnel 在握手完成前退出。请检查服务器、账号密码、证书信任或二次验证要求；如果当前构建缺少 OpenConnect runtime，连接会在启动阶段直接失败。"
+    }
+
+    private static var connectionTimeoutMessage: String {
+        "连接超时：Packet Tunnel 20 秒内没有进入已连接状态。请检查服务器是否可达、账号密码、证书信任和二次验证。"
     }
 
     private static func userFacingMessage(for error: Error) -> String {
         let nsError = error as NSError
         if nsError.localizedDescription.localizedCaseInsensitiveContains("IPC failed") {
-            return "\(packetTunnelEngineUnavailableMessage)\n系统返回：IPC failed"
+            #if targetEnvironment(simulator)
+            return "连接失败：当前 iOS Simulator 没有可用的 Network Extension nehelper 服务，真实 Packet Tunnel 不能在这个模拟器里启动。请用 Simulator Preview 测 UI，或用带 packet-tunnel-provider entitlement 的真机包测试真实 VPN。"
+            #else
+            return "连接失败：系统只返回了 IPC failed，通常表示 Packet Tunnel 扩展启动后立刻失败或当前签名/Network Extension 权限不可用。请重新保存配置后再试。"
+            #endif
         }
 
         let parts = [

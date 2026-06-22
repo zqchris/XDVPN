@@ -70,11 +70,6 @@ struct VPNDashboardView: View {
                         policy: $controller.profile.routePolicy,
                         focusedField: $focusedField
                     )
-
-                    PacketTunnelNoteView(
-                        lastError: controller.lastError,
-                        demoTunnelEnabled: controller.demoTunnelEnabled
-                    )
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 34)
@@ -127,9 +122,9 @@ struct VPNDashboardView: View {
     }
 
     private var routeModeTitle: String {
-        if controller.demoTunnelEnabled { return "Local Demo Tunnel" }
+        if controller.demoTunnelEnabled { return "Simulator Preview" }
         return controller.profile.routePolicy.isEnabled && controller.profile.routePolicy.hasRules
-            ? "Manual VPN Policy"
+            ? "Split VPN"
             : "Global VPN"
     }
 
@@ -308,6 +303,17 @@ private enum PowerRingTone: Equatable {
             return Color(red: 1.0, green: 0.25, blue: 0.24)
         }
     }
+
+    var solidRingColor: Color {
+        switch self {
+        case .primary:
+            return Color(red: 0.18, green: 0.78, blue: 1.0)
+        case .warning:
+            return Color(red: 1.0, green: 0.74, blue: 0.22)
+        case .danger:
+            return Color(red: 1.0, green: 0.34, blue: 0.32)
+        }
+    }
 }
 
 private struct PowerControlView: View {
@@ -338,7 +344,7 @@ private struct PowerControlView: View {
         ZStack {
             if showsRing {
                 Circle()
-                    .stroke(Color.white.opacity(isEnabled ? 0.08 : 0.045), lineWidth: 24)
+                    .stroke(Color.white.opacity(isEnabled ? 0.045 : 0.025), lineWidth: 24)
                     .frame(width: 232, height: 232)
 
                 ringStroke
@@ -383,11 +389,19 @@ private struct PowerControlView: View {
 
     @ViewBuilder
     private var ringStroke: some View {
-        Circle()
-            .stroke(
-                ringGradient,
-                style: StrokeStyle(lineWidth: 17, lineCap: .round)
-            )
+        if isBusy {
+            Circle()
+                .stroke(
+                    ringGradient,
+                    style: StrokeStyle(lineWidth: 18, lineCap: .butt)
+                )
+        } else {
+            Circle()
+                .stroke(
+                    ringSolidColor,
+                    style: StrokeStyle(lineWidth: 18, lineCap: .butt)
+                )
+        }
     }
 
     private var ringGradient: AngularGradient {
@@ -404,6 +418,11 @@ private struct PowerControlView: View {
             return [.white.opacity(0.12), .white.opacity(0.08), .white.opacity(0.12)]
         }
         return tone.ringColors
+    }
+
+    private var ringSolidColor: Color {
+        guard isEnabled else { return .white.opacity(0.1) }
+        return tone.solidRingColor
     }
 
     private var glowColor: Color {
@@ -509,10 +528,31 @@ private struct SettingsPanelView: View {
 
             DividerView()
 
+            Toggle(isOn: $profile.allowUntrustedServerCertificate) {
+                HStack(spacing: 16) {
+                    SettingsIcon(
+                        name: profile.allowUntrustedServerCertificate ? "checkmark.shield.fill" : "shield",
+                        color: profile.allowUntrustedServerCertificate
+                            ? Color(red: 1.0, green: 0.74, blue: 0.22)
+                            : Color(red: 0.28, green: 0.72, blue: 1.0)
+                    )
+                    Text("Trust Certificate")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(Color(red: 1.0, green: 0.74, blue: 0.22))
+            .frame(height: 68)
+
+#if DEBUG
+            DividerView()
+
             Toggle(isOn: $demoTunnelEnabled) {
                 HStack(spacing: 16) {
                     SettingsIcon(name: "iphone.gen3.radiowaves.left.and.right", color: demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
-                    Text("Demo Tunnel")
+                    Text("Simulator Preview")
                         .font(.system(size: 20, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                     Spacer()
@@ -521,22 +561,7 @@ private struct SettingsPanelView: View {
             .toggleStyle(.switch)
             .tint(Color(red: 0.18, green: 0.82, blue: 1.0))
             .frame(height: 68)
-
-            DividerView()
-
-            HStack(spacing: 16) {
-                SettingsIcon(name: "waveform.path.ecg", color: demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
-                Text("Packet Tunnel")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                Spacer()
-                Text(demoTunnelEnabled ? "Demo Ready" : "Pending Engine")
-                    .font(.system(size: 17, weight: .medium, design: .rounded))
-                    .foregroundStyle(demoTunnelEnabled ? Color(red: 0.18, green: 0.82, blue: 1.0) : Color(red: 1.0, green: 0.72, blue: 0.16))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .frame(height: 68)
+#endif
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 8)
@@ -840,29 +865,6 @@ private struct PolicyEditorRow: View {
                 }
         }
         .padding(.vertical, 14)
-    }
-}
-
-private struct PacketTunnelNoteView: View {
-    let lastError: String?
-    let demoTunnelEnabled: Bool
-
-    var body: some View {
-        VStack(spacing: 10) {
-            Text(noteText)
-                .font(.system(size: 15, weight: .medium, design: .rounded))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(lastError == nil ? .white.opacity(0.46) : Color(red: 1.0, green: 0.45, blue: 0.38))
-                .lineLimit(3)
-                .padding(.horizontal, 20)
-        }
-        .padding(.top, 2)
-    }
-
-    private var noteText: String {
-        if let lastError { return lastError }
-        if demoTunnelEnabled { return "Local demo mode previews connection states without system VPN traffic." }
-        return "VPN settings are saved into the packet tunnel configuration."
     }
 }
 

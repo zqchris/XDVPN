@@ -5,6 +5,7 @@ import os.log
 final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let logger = Logger(subsystem: "com.kafeifei.xdvpn.ios", category: "PacketTunnel")
     private var activeEngine: PacketTunnelEngine?
+    private var lastStartError: String?
 
     override func startTunnel(
         options: [String: NSObject]?,
@@ -19,7 +20,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         engine.start(
             provider: self,
             configuration: configuration,
-            completionHandler: completionHandler
+            completionHandler: { [weak self] error in
+                if let error {
+                    self?.lastStartError = Self.userFacingMessage(for: error)
+                } else {
+                    self?.lastStartError = nil
+                }
+                completionHandler(error)
+            }
         )
     }
 
@@ -38,7 +46,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         _ messageData: Data,
         completionHandler: ((Data?) -> Void)?
     ) {
-        completionHandler?(nil)
+        let command = String(data: messageData, encoding: .utf8) ?? ""
+        guard command == "diagnostics" else {
+            completionHandler?(nil)
+            return
+        }
+
+        let payload: [String: String] = [
+            "status": activeEngine == nil ? "idle" : "running",
+            "lastStartError": lastStartError ?? "",
+        ]
+        completionHandler?(try? JSONSerialization.data(withJSONObject: payload))
     }
 
     override func sleep(completionHandler: @escaping () -> Void) {
@@ -54,5 +72,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         case .openconnect:
             return OpenConnectPacketTunnelEngine()
         }
+    }
+
+    private static func userFacingMessage(for error: Error) -> String {
+        let nsError = error as NSError
+        let parts = [
+            nsError.localizedDescription,
+            nsError.localizedFailureReason,
+            nsError.localizedRecoverySuggestion,
+        ]
+        .compactMap { text -> String? in
+            guard let text, !text.isEmpty else { return nil }
+            return text
+        }
+        return parts.isEmpty ? String(describing: error) : parts.joined(separator: "\n")
     }
 }

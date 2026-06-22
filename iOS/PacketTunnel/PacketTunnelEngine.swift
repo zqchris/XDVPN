@@ -1,6 +1,7 @@
 import Foundation
 import NetworkExtension
 import os.log
+import Security
 
 enum PacketTunnelEngineMode: String {
     case openconnect
@@ -15,6 +16,8 @@ struct PacketTunnelConfiguration {
     let runningMode: String
     let splitCIDRs: [String]
     let splitDomains: [String]
+    let password: String
+    let allowUntrustedServerCertificate: Bool
 
     init(protocolConfiguration: NETunnelProviderProtocol?) {
         let providerConfiguration = protocolConfiguration?.providerConfiguration ?? [:]
@@ -26,9 +29,45 @@ struct PacketTunnelConfiguration {
         runningMode = providerConfiguration["runningMode"] as? String ?? "full"
         splitCIDRs = providerConfiguration["splitCIDRs"] as? [String] ?? []
         splitDomains = providerConfiguration["splitDomains"] as? [String] ?? []
+        password = Self.password(
+            fromPersistentReference: protocolConfiguration?.passwordReference
+        ) ?? providerConfiguration["password"] as? String ?? ""
+        allowUntrustedServerCertificate = providerConfiguration["allowUntrustedServerCertificate"] as? Bool ?? false
 
         let rawMode = providerConfiguration["engineMode"] as? String ?? "openconnect"
         engineMode = PacketTunnelEngineMode(rawValue: rawMode) ?? .openconnect
+    }
+
+    var runtimeDictionary: [String: Any] {
+        [
+            "server": server,
+            "username": username,
+            "password": password,
+            "protocol": protocolName,
+            "runningMode": runningMode,
+            "splitCIDRs": splitCIDRs,
+            "splitDomains": splitDomains,
+            "allowUntrustedServerCertificate": allowUntrustedServerCertificate,
+        ]
+    }
+
+    private static func password(fromPersistentReference persistentReference: Data?) -> String? {
+        guard let persistentReference else { return nil }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecValuePersistentRef as String: persistentReference,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data,
+              let password = String(data: data, encoding: .utf8)
+        else { return nil }
+        return password
     }
 }
 
@@ -131,17 +170,33 @@ final class DemoPacketTunnelEngine: PacketTunnelEngine {
 
 final class OpenConnectPacketTunnelEngine: PacketTunnelEngine {
     private let logger = Logger(subsystem: "com.kafeifei.xdvpn.ios", category: "OpenConnectPacketTunnel")
+    private var runtime: XDOpenConnectRuntime?
 
     func start(
         provider: NEPacketTunnelProvider,
         configuration: PacketTunnelConfiguration,
         completionHandler: @escaping (Error?) -> Void
     ) {
-        logger.error("OpenConnect engine is not linked. server=\(configuration.server, privacy: .private) protocol=\(configuration.protocolName, privacy: .public) mode=\(configuration.runningMode, privacy: .public) cidrs=\(configuration.splitCIDRs.count, privacy: .public) domains=\(configuration.splitDomains.count, privacy: .public)")
-        completionHandler(PacketTunnelStartFailure.openConnectEngineUnavailable(
-            server: configuration.server,
-            protocolName: configuration.protocolName
-        ).nsError)
+        guard !configuration.password.isEmpty else {
+            completionHandler(PacketTunnelStartFailure.missingPassword.nsError)
+            return
+        }
+
+        logger.info("Starting OpenConnect runtime protocol=\(configuration.protocolName, privacy: .public) mode=\(configuration.runningMode, privacy: .public) cidrs=\(configuration.splitCIDRs.count, privacy: .public) domains=\(configuration.splitDomains.count, privacy: .public)")
+        let runtime = XDOpenConnectRuntime()
+        self.runtime = runtime
+        runtime.start(
+            provider: provider,
+            packetFlow: provider.packetFlow,
+            configuration: configuration.runtimeDictionary
+        ) { [weak self] error in
+            if let error {
+                self?.logger.error("OpenConnect runtime failed: \(error.localizedDescription, privacy: .public)")
+            } else {
+                self?.logger.info("OpenConnect runtime started")
+            }
+            completionHandler(error)
+        }
     }
 
     func stop(
@@ -150,23 +205,25 @@ final class OpenConnectPacketTunnelEngine: PacketTunnelEngine {
         completionHandler: @escaping () -> Void
     ) {
         logger.info("OpenConnect tunnel stopped with reason \(reason.rawValue, privacy: .public)")
-        completionHandler()
+        let runtime = runtime
+        self.runtime = nil
+        runtime?.stop(completion: completionHandler) ?? completionHandler()
     }
 }
 
 private enum PacketTunnelStartFailure {
-    case openConnectEngineUnavailable(server: String, protocolName: String)
+    case missingPassword
 
     var nsError: NSError {
         switch self {
-        case .openConnectEngineUnavailable(let server, let protocolName):
+        case .missingPassword:
             return NSError(
                 domain: "com.kafeifei.xdvpn.ios.PacketTunnel",
-                code: 1,
+                code: 2,
                 userInfo: [
-                    NSLocalizedDescriptionKey: "OpenConnect iOS 引擎尚未接入",
-                    NSLocalizedFailureReasonErrorKey: "iOS 不能像 macOS 版一样启动 openconnect 进程；Packet Tunnel extension 必须内嵌协议实现。",
-                    NSLocalizedRecoverySuggestionErrorKey: "需要把 \(protocolName) 协议引擎移植为 extension 内可调用库后，才能连接 \(server)。",
+                    NSLocalizedDescriptionKey: "缺少 VPN 密码",
+                    NSLocalizedFailureReasonErrorKey: "Packet Tunnel extension 没有拿到 Keychain passwordReference 对应的密码。",
+                    NSLocalizedRecoverySuggestionErrorKey: "请在 iOS App 里重新输入密码并保存后再连接。",
                 ]
             )
         }
