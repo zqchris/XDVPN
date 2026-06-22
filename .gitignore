@@ -14,6 +14,8 @@ build/
 *.xcworkspace/
 DerivedData/
 xcuserdata/
+!XDVPN-iOS.xcodeproj/
+!XDVPN-iOS.xcodeproj/project.pbxproj
 
 # IDE
 .vscode/
