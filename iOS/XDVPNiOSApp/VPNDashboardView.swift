@@ -20,22 +20,22 @@ struct VPNDashboardView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    HeaderView(isBusy: isPowerTransitioning) {
+                    HeaderView(isBusy: controller.isBusy || isPowerTransitioning) {
                         Task { await controller.reload() }
                     }
                     .padding(.top, 18)
 
-                    VStack(spacing: 18) {
+                    VStack(spacing: 20) {
                         Text(statusText)
                             .font(.system(size: 30, weight: .semibold, design: .rounded))
-                            .foregroundStyle(statusColor.opacity(controller.isConnected ? 1 : 0.72))
+                            .foregroundStyle(statusColor)
 
                         Button {
                             focusedField = nil
                             handlePowerTap()
                         } label: {
                             PowerControlView(
-                                isConnected: controller.isConnected,
+                                isConnected: isTunnelConnected,
                                 isBusy: isPowerTransitioning,
                                 isEnabled: canUsePowerButton,
                                 ringRotation: ringRotation
@@ -44,10 +44,6 @@ struct VPNDashboardView: View {
                         .buttonStyle(.plain)
                         .disabled(!canUsePowerButton || isPowerTransitioning)
                         .accessibilityLabel(powerAccessibilityLabel)
-
-                        Text(powerActionTitle)
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(actionColor)
                     }
 
                     ServerSummaryView(
@@ -89,14 +85,17 @@ struct VPNDashboardView: View {
     }
 
     private var canUsePowerButton: Bool {
-        controller.isConnected || controller.profile.canConnect
+        true
     }
 
     private var isPowerTransitioning: Bool {
-        controller.isBusy ||
         controller.status == .connecting ||
         controller.status == .reasserting ||
         controller.status == .disconnecting
+    }
+
+    private var isTunnelConnected: Bool {
+        controller.status == .connected
     }
 
     private var displayServer: String {
@@ -124,35 +123,19 @@ struct VPNDashboardView: View {
         }
     }
 
-    private var powerActionTitle: String {
-        if controller.status == .disconnecting {
-            return "Disconnecting"
-        }
-        if isPowerTransitioning {
-            return "Connecting"
-        }
-        return controller.isConnected ? "Disconnect" : "Connect"
-    }
-
     private var powerAccessibilityLabel: String {
-        controller.isConnected ? "Disconnect VPN" : "Connect VPN"
+        isTunnelConnected ? "Disconnect VPN" : "Connect VPN"
     }
 
     private var statusColor: Color {
-        if controller.isConnected { return .white }
-        if isPowerTransitioning { return .cyan }
-        return .white.opacity(0.7)
-    }
-
-    private var actionColor: Color {
-        if !canUsePowerButton { return .white.opacity(0.28) }
-        if controller.isConnected { return Color(red: 0.38, green: 0.94, blue: 0.74) }
-        return Color(red: 0.18, green: 0.82, blue: 1.0)
+        if isTunnelConnected { return Color(red: 0.45, green: 1.0, blue: 0.76) }
+        if isPowerTransitioning { return Color(red: 0.18, green: 0.82, blue: 1.0) }
+        return .white.opacity(0.72)
     }
 
     private func handlePowerTap() {
         Task {
-            if controller.isConnected {
+            if isTunnelConnected {
                 controller.disconnect()
             } else {
                 await controller.connect()
@@ -165,7 +148,7 @@ struct VPNDashboardView: View {
             ringRotation = 0
             return
         }
-        withAnimation(.linear(duration: 1.25).repeatForever(autoreverses: false)) {
+        withAnimation(.linear(duration: 0.95).repeatForever(autoreverses: false)) {
             ringRotation = 360
         }
     }
@@ -235,7 +218,7 @@ private struct PowerControlView: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.08), lineWidth: 24)
+                .stroke(Color.white.opacity(isEnabled ? 0.08 : 0.045), lineWidth: 24)
                 .frame(width: 232, height: 232)
 
             Circle()
@@ -251,15 +234,15 @@ private struct PowerControlView: View {
                 )
                 .frame(width: 232, height: 232)
                 .rotationEffect(.degrees(isBusy ? ringRotation - 92 : -92))
-                .shadow(color: glowColor.opacity(isEnabled ? 0.58 : 0.08), radius: 18)
+                .shadow(color: glowColor.opacity(isEnabled ? glowOpacity : 0.08), radius: glowRadius)
 
             ZStack {
                 Circle()
                     .fill(
                         LinearGradient(
                             colors: [
-                                Color(red: 0.15, green: 0.18, blue: 0.24),
-                                Color(red: 0.065, green: 0.075, blue: 0.105),
+                                innerStartColor,
+                                innerEndColor,
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -281,12 +264,13 @@ private struct PowerControlView: View {
         .opacity(isEnabled ? 1 : 0.52)
         .frame(width: 260, height: 260)
         .contentShape(Circle())
+        .animation(.smooth(duration: 0.2), value: isBusy)
+        .animation(.smooth(duration: 0.2), value: isConnected)
+        .animation(.smooth(duration: 0.2), value: isEnabled)
     }
 
     private var trimEnd: CGFloat {
-        if isBusy { return 0.78 }
-        if isConnected { return 0.99 }
-        return 0.82
+        isBusy ? 0.74 : 0.99
     }
 
     private var ringColors: [Color] {
@@ -296,24 +280,56 @@ private struct PowerControlView: View {
         if isConnected {
             return [
                 Color(red: 0.42, green: 0.98, blue: 0.74),
-                Color(red: 0.15, green: 0.82, blue: 1.0),
+                Color(red: 0.18, green: 0.86, blue: 0.58),
                 Color(red: 0.42, green: 0.98, blue: 0.74),
             ]
         }
+        if isBusy {
+            return [
+                Color(red: 0.14, green: 0.9, blue: 1.0),
+                Color(red: 0.16, green: 0.46, blue: 1.0),
+                Color(red: 0.14, green: 0.9, blue: 1.0),
+            ]
+        }
         return [
-            Color(red: 0.12, green: 0.82, blue: 1.0),
-            Color(red: 0.16, green: 0.46, blue: 1.0),
-            Color(red: 0.16, green: 0.9, blue: 0.94),
+            Color(red: 0.16, green: 0.52, blue: 1.0),
+            Color(red: 0.18, green: 0.82, blue: 1.0),
+            Color(red: 0.16, green: 0.52, blue: 1.0),
         ]
     }
 
     private var glowColor: Color {
-        isConnected ? Color(red: 0.34, green: 0.98, blue: 0.74) : Color(red: 0.1, green: 0.78, blue: 1.0)
+        isConnected ? Color(red: 0.34, green: 0.98, blue: 0.74) : Color(red: 0.12, green: 0.68, blue: 1.0)
+    }
+
+    private var glowOpacity: Double {
+        if isBusy { return 0.68 }
+        if isConnected { return 0.58 }
+        return 0.38
+    }
+
+    private var glowRadius: CGFloat {
+        isBusy || isConnected ? 18 : 12
+    }
+
+    private var innerStartColor: Color {
+        if isConnected { return Color(red: 0.08, green: 0.28, blue: 0.2) }
+        if isBusy { return Color(red: 0.09, green: 0.2, blue: 0.3) }
+        if isEnabled { return Color(red: 0.08, green: 0.16, blue: 0.28) }
+        return Color(red: 0.12, green: 0.14, blue: 0.18)
+    }
+
+    private var innerEndColor: Color {
+        if isConnected { return Color(red: 0.035, green: 0.12, blue: 0.09) }
+        if isBusy { return Color(red: 0.035, green: 0.07, blue: 0.13) }
+        if isEnabled { return Color(red: 0.035, green: 0.07, blue: 0.14) }
+        return Color(red: 0.055, green: 0.06, blue: 0.08)
     }
 
     private var iconColor: Color {
         if isConnected { return Color(red: 0.45, green: 1.0, blue: 0.76) }
-        if isEnabled { return .white.opacity(0.48) }
+        if isBusy { return Color(red: 0.18, green: 0.82, blue: 1.0) }
+        if isEnabled { return Color(red: 0.22, green: 0.68, blue: 1.0) }
         return .white.opacity(0.2)
     }
 }
@@ -382,21 +398,7 @@ private struct SettingsPanelView: View {
 
             DividerView()
 
-            HStack(spacing: 16) {
-                SettingsIcon(name: "point.3.connected.trianglepath.dotted")
-                Text("Protocol")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                Spacer()
-                Picker("Protocol", selection: $profile.protocolName) {
-                    ForEach(OpenConnectProtocol.allCases) { item in
-                        Text(item.rawValue).tag(item)
-                    }
-                }
-                .labelsHidden()
-                .tint(.white.opacity(0.62))
-            }
-            .frame(height: 68)
+            ProtocolSelectorSection(selection: $profile.protocolName)
 
             DividerView()
 
@@ -417,6 +419,78 @@ private struct SettingsPanelView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 8)
         .background(PanelBackground(cornerRadius: 18))
+    }
+}
+
+private struct ProtocolSelectorSection: View {
+    @Binding var selection: OpenConnectProtocol
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 128), spacing: 8, alignment: .leading),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                SettingsIcon(name: "point.3.connected.trianglepath.dotted")
+                Text("Protocol")
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(selection.displayName)
+                    .font(.system(size: 17, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(OpenConnectProtocol.allCases) { item in
+                    ProtocolChoiceChip(
+                        title: item.displayName,
+                        isSelected: selection == item
+                    ) {
+                        selection = item
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 14)
+    }
+}
+
+private struct ProtocolChoiceChip: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 4)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(isSelected ? Color(red: 0.28, green: 0.74, blue: 1.0) : .white.opacity(0.5))
+            .frame(maxWidth: .infinity)
+            .frame(height: 38)
+            .padding(.horizontal, 10)
+            .background {
+                Capsule()
+                    .fill(isSelected ? Color(red: 0.08, green: 0.24, blue: 0.42).opacity(0.72) : Color.white.opacity(0.055))
+            }
+            .overlay {
+                Capsule()
+                    .stroke(isSelected ? Color(red: 0.28, green: 0.74, blue: 1.0).opacity(0.38) : .white.opacity(0.08), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

@@ -10,6 +10,25 @@ enum OpenConnectProtocol: String, CaseIterable, Codable, Identifiable {
     case array
 
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .anyconnect:
+            return "AnyConnect"
+        case .nc:
+            return "NC"
+        case .gp:
+            return "GlobalProtect"
+        case .pulse:
+            return "Pulse"
+        case .f5:
+            return "F5"
+        case .fortinet:
+            return "Fortinet"
+        case .array:
+            return "Array"
+        }
+    }
 }
 
 struct VPNProfile: Codable, Equatable {

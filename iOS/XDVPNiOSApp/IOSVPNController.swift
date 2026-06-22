@@ -72,7 +72,10 @@ final class IOSVPNController: ObservableObject {
             return
         }
 
-        await runBusyTask {
+        status = .connecting
+        try? await Task.sleep(nanoseconds: 350_000_000)
+
+        await runBusyTask(fallbackStatus: .disconnected) {
             manager = try await configuredManager()
             try await manager?.saveToPreferencesAsync()
             try await manager?.loadFromPreferencesAsync()
@@ -82,6 +85,7 @@ final class IOSVPNController: ObservableObject {
     }
 
     func disconnect() {
+        status = .disconnecting
         manager?.connection.stopVPNTunnel()
         status = manager?.connection.status ?? .disconnecting
     }
@@ -109,13 +113,19 @@ final class IOSVPNController: ObservableObject {
         return target
     }
 
-    private func runBusyTask(_ operation: () async throws -> Void) async {
+    private func runBusyTask(
+        fallbackStatus: NEVPNStatus? = nil,
+        _ operation: () async throws -> Void
+    ) async {
         isBusy = true
         lastError = nil
         do {
             try await operation()
         } catch {
             lastError = error.localizedDescription
+            if let fallbackStatus {
+                status = manager?.connection.status ?? fallbackStatus
+            }
         }
         isBusy = false
     }
