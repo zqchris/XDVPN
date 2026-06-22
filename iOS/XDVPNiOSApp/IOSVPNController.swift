@@ -13,6 +13,7 @@ final class IOSVPNController: ObservableObject {
 
     private var manager: NETunnelProviderManager?
     private var statusObserver: NSObjectProtocol?
+    private var isConnectionAttemptInFlight = false
 
     init(loadOnStart: Bool = true) {
         self.profile = Self.loadStoredProfile()
@@ -68,10 +69,11 @@ final class IOSVPNController: ObservableObject {
 
     func connect() async {
         guard profile.canConnect else {
-            lastError = "请先填写服务器和用户名"
+            presentError("请先填写服务器和用户名")
             return
         }
 
+        isConnectionAttemptInFlight = true
         status = .connecting
         try? await Task.sleep(nanoseconds: 350_000_000)
 
@@ -82,9 +84,14 @@ final class IOSVPNController: ObservableObject {
             try manager?.connection.startVPNTunnel()
             status = manager?.connection.status ?? .connecting
         }
+
+        if lastError != nil {
+            isConnectionAttemptInFlight = false
+        }
     }
 
     func disconnect() {
+        isConnectionAttemptInFlight = false
         status = .disconnecting
         manager?.connection.stopVPNTunnel()
         status = manager?.connection.status ?? .disconnecting
@@ -122,7 +129,7 @@ final class IOSVPNController: ObservableObject {
         do {
             try await operation()
         } catch {
-            lastError = error.localizedDescription
+            presentError(Self.userFacingMessage(for: error))
             if let fallbackStatus {
                 status = manager?.connection.status ?? fallbackStatus
             }
@@ -140,9 +147,32 @@ final class IOSVPNController: ObservableObject {
                   let connection = notification.object as? NEVPNConnection
             else { return }
             Task { @MainActor in
+                let previousStatus = self.status
                 self.status = connection.status
+                self.handleStatusChange(from: previousStatus, to: connection.status)
             }
         }
+    }
+
+    private func handleStatusChange(from previousStatus: NEVPNStatus, to newStatus: NEVPNStatus) {
+        guard isConnectionAttemptInFlight else { return }
+
+        switch newStatus {
+        case .connected:
+            isConnectionAttemptInFlight = false
+            lastError = nil
+        case .disconnected, .invalid:
+            if previousStatus == .connecting || previousStatus == .reasserting || previousStatus == .connected {
+                isConnectionAttemptInFlight = false
+                presentError(Self.packetTunnelEngineUnavailableMessage)
+            }
+        default:
+            break
+        }
+    }
+
+    private func presentError(_ message: String) {
+        lastError = message
     }
 
     private func persistProfile() {
@@ -178,6 +208,32 @@ final class IOSVPNController: ObservableObject {
         )
         controller.status = status
         return controller
+    }
+
+    private static var packetTunnelEngineUnavailableMessage: String {
+        "连接失败：iOS Packet Tunnel 已启动，但 OpenConnect 协议引擎尚未接入。当前版本只能保存配置和路由策略，还不能真正建立 AnyConnect/OpenConnect 隧道。"
+    }
+
+    private static func userFacingMessage(for error: Error) -> String {
+        let nsError = error as NSError
+        if nsError.localizedDescription.localizedCaseInsensitiveContains("IPC failed") {
+            return "\(packetTunnelEngineUnavailableMessage)\n系统返回：IPC failed"
+        }
+
+        let parts = [
+            nsError.localizedDescription,
+            nsError.localizedFailureReason,
+            nsError.localizedRecoverySuggestion,
+        ]
+        .compactMap { text -> String? in
+            guard let text, !text.isEmpty else { return nil }
+            return text
+        }
+
+        if parts.isEmpty {
+            return "连接失败：\(String(describing: error))"
+        }
+        return parts.joined(separator: "\n")
     }
 }
 

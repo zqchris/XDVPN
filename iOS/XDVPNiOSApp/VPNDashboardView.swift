@@ -5,6 +5,7 @@ struct VPNDashboardView: View {
     @StateObject private var controller: IOSVPNController
     @FocusState private var focusedField: Field?
     @State private var ringRotation: Double = 0
+    @State private var presentedError: PresentedError?
 
     init() {
         _controller = StateObject(wrappedValue: IOSVPNController())
@@ -48,6 +49,11 @@ struct VPNDashboardView: View {
                         .accessibilityLabel(powerAccessibilityLabel)
                     }
 
+                    if let lastError = controller.lastError {
+                        ConnectionErrorBanner(message: lastError)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     ServerSummaryView(
                         server: displayServer,
                         mode: routeModeTitle
@@ -83,6 +89,17 @@ struct VPNDashboardView: View {
         }
         .onChange(of: controller.status) { _, _ in
             startRingAnimationIfNeeded()
+        }
+        .onChange(of: controller.lastError) { _, message in
+            guard let message, !message.isEmpty else { return }
+            presentedError = PresentedError(message: message)
+        }
+        .alert(item: $presentedError) { error in
+            Alert(
+                title: Text("连接失败"),
+                message: Text(error.message),
+                dismissButton: .default(Text("知道了"))
+            )
         }
     }
 
@@ -164,6 +181,11 @@ struct VPNDashboardView: View {
     }
 }
 
+private struct PresentedError: Identifiable {
+    let id = UUID()
+    let message: String
+}
+
 private struct BackgroundView: View {
     var body: some View {
         LinearGradient(
@@ -208,6 +230,36 @@ private struct HeaderView: View {
         }
         .overlay(alignment: .leading) {
             Color.clear.frame(width: 44, height: 44)
+        }
+    }
+}
+
+private struct ConnectionErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color(red: 1.0, green: 0.54, blue: 0.32))
+                .frame(width: 24, height: 24)
+
+            Text(message)
+                .font(.system(size: 15, weight: .medium, design: .rounded))
+                .foregroundStyle(.white.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(red: 0.28, green: 0.055, blue: 0.045).opacity(0.86))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(red: 1.0, green: 0.38, blue: 0.32).opacity(0.28), lineWidth: 1)
         }
     }
 }
