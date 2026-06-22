@@ -38,6 +38,7 @@ struct VPNDashboardView: View {
                                 isConnected: isTunnelConnected,
                                 isBusy: isPowerTransitioning,
                                 isEnabled: canUsePowerButton,
+                                showsRing: isPowerTransitioning || isTunnelConnected,
                                 tone: powerRingTone,
                                 ringRotation: ringRotation
                             )
@@ -255,27 +256,38 @@ private struct PowerControlView: View {
     let isBusy: Bool
     let isConnected: Bool
     let isEnabled: Bool
+    let showsRing: Bool
     let tone: PowerRingTone
     let ringRotation: Double
 
-    init(isConnected: Bool, isBusy: Bool, isEnabled: Bool, tone: PowerRingTone, ringRotation: Double) {
+    init(
+        isConnected: Bool,
+        isBusy: Bool,
+        isEnabled: Bool,
+        showsRing: Bool,
+        tone: PowerRingTone,
+        ringRotation: Double
+    ) {
         self.isConnected = isConnected
         self.isBusy = isBusy
         self.isEnabled = isEnabled
+        self.showsRing = showsRing
         self.tone = tone
         self.ringRotation = ringRotation
     }
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(Color.white.opacity(isEnabled ? 0.08 : 0.045), lineWidth: 24)
-                .frame(width: 232, height: 232)
+            if showsRing {
+                Circle()
+                    .stroke(Color.white.opacity(isEnabled ? 0.08 : 0.045), lineWidth: 24)
+                    .frame(width: 232, height: 232)
 
-            ringStroke
-                .frame(width: 232, height: 232)
-                .rotationEffect(.degrees(isBusy ? ringRotation - 92 : 0))
-                .shadow(color: glowColor.opacity(isEnabled ? glowOpacity : 0.08), radius: glowRadius)
+                ringStroke
+                    .frame(width: 232, height: 232)
+                    .rotationEffect(.degrees(isBusy ? ringRotation - 92 : 0))
+                    .shadow(color: glowColor.opacity(isEnabled ? glowOpacity : 0.08), radius: glowRadius)
+            }
 
             ZStack {
                 Circle()
@@ -308,6 +320,7 @@ private struct PowerControlView: View {
         .animation(.smooth(duration: 0.2), value: isBusy)
         .animation(.smooth(duration: 0.2), value: isConnected)
         .animation(.smooth(duration: 0.2), value: isEnabled)
+        .animation(.smooth(duration: 0.2), value: showsRing)
     }
 
     @ViewBuilder
